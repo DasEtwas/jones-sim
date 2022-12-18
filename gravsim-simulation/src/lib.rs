@@ -6,6 +6,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub mod tree;
+pub mod hashgrid;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Star {
