@@ -27,7 +27,7 @@ async fn main() {
     let margin = 0.1;
 
     let temp = 0.0;
-    let side_length = 100;
+    let side_length = 300;
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
         Vector2::new(
@@ -63,11 +63,15 @@ async fn main() {
                     pos + Vector2::repeat(margin * side_length as f32),
                     //Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
                     //    * temp,
-                    if pos.y > side_length as f32 * 0.5 {
-                        Vector2::new(vel, -vel * 0.2)
-                    } else {
-                        Vector2::new(-vel, vel * 0.2)
-                    },
+                    //if pos.y > side_length as f32 * 0.5 {
+                    //    Vector2::new(vel, -vel * 0.2)
+                    //} else {
+                    //    Vector2::new(-vel, vel * 0.2)
+                    //},
+                    Vector2::new(
+                        pos.y - side_length as f32 * 0.5,
+                        -(pos.x - side_length as f32 * 0.5),
+                    ) * 10.0,
                     [0.7; 3],
                     50.0,
                 )
