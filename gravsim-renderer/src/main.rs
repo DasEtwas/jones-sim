@@ -2,10 +2,12 @@ pub mod colormap;
 pub mod state;
 
 use crate::state::State;
+use arc_swap::ArcSwap;
 use gravsim_simulation::{MassDistribution, Simulation, Star};
 use nalgebra::Vector2;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use wgpu::SurfaceError;
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
@@ -45,7 +47,7 @@ async fn main() {
     let count = side_length * side_length;
     //let count = side_length * side_length / 4;
 
-    let simulation = Simulation::new(
+    let mut simulation = Simulation::new(
         (0..count)
             .map(|i| {
                 Star::new(
@@ -62,7 +64,21 @@ async fn main() {
         2.0,
     );
 
-    let mut state = State::new(&window, simulation).await;
+    let stars = Arc::new(ArcSwap::from_pointee(simulation.stars.clone()));
+
+    let mut state = State::new(&window, &simulation, stars.clone()).await;
+
+    std::thread::spawn(move || loop {
+        // update simulation state
+        let start = Instant::now();
+        let iters = 30;
+        for _ in 0..iters {
+            simulation.update();
+        }
+        println!("{:.5?}", start.elapsed() / iters);
+        stars.store(Arc::new(simulation.stars.clone()));
+    });
+
     let mut last = Instant::now();
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
@@ -89,9 +105,9 @@ async fn main() {
         Event::RedrawRequested(window_id)
             if window_id == window.id() && last.elapsed() > Duration::from_millis(30) =>
         {
-            state.update();
             last = Instant::now();
 
+            state.update();
             match state.render() {
                 Ok(_) => {}
                 Err(e) => match e {

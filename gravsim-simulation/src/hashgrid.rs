@@ -1,4 +1,5 @@
 use bumpalo::Bump;
+use smallvec::SmallVec;
 use std::ops::{AddAssign, Neg};
 
 pub type ParticleId = usize;
@@ -45,7 +46,7 @@ impl HashGrid {
     ) {
         assert_eq!(particles.len(), forces_buffer.len());
 
-        let mut grid: Vec<Option<GridCell<'a>>> = std::iter::repeat(None)
+        let mut grid: Vec<Option<GridCell>> = std::iter::repeat(None)
             .take(self.size_x * self.size_y)
             .collect();
 
@@ -55,7 +56,7 @@ impl HashGrid {
                 cell.particles.push(id);
             } else {
                 let mut cell = GridCell {
-                    particles: bumpalo::collections::Vec::new_in(&alloc),
+                    particles: SmallVec::new(),
                 };
                 cell.particles.push(id);
                 grid[hash] = Some(cell);
@@ -101,6 +102,6 @@ impl HashGrid {
 }
 
 #[derive(Clone)]
-pub struct GridCell<'alloc> {
-    particles: bumpalo::collections::Vec<'alloc, ParticleId>,
+pub struct GridCell {
+    particles: SmallVec<[ParticleId; 8]>,
 }

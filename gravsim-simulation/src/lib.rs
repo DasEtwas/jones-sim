@@ -3,6 +3,7 @@ use bumpalo::Bump;
 use nalgebra::{Vector2, Vector3};
 use rand::{Rng, SeedableRng};
 use rand_xorshift::XorShiftRng;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub mod hashgrid;
@@ -57,6 +58,7 @@ pub struct MassData {
 
 pub struct Simulation {
     pub stars: Vec<Star>,
+    pub forces_buf: Vec<Vector2<f32>>,
     pub grid: HashGrid,
     pub alloc: Bump,
 }
@@ -70,8 +72,10 @@ impl Simulation {
     where
         I: IntoIterator<Item = Star>,
     {
+        let stars: Vec<Star> = stars.into_iter().collect();
         Self {
-            stars: stars.into_iter().collect(),
+            forces_buf: vec![Vector2::<f32>::zeros(); stars.len()],
+            stars,
             grid: HashGrid::new(
                 (side_length as f32 / cell_size) as usize,
                 (side_length as f32 / cell_size) as usize,
@@ -132,12 +136,11 @@ impl Simulation {
             .iter()
             .map(|star| (star.mass_point.position.x, star.mass_point.position.y, star))
             .collect::<Vec<_>>();
-        let mut forces_buf = vec![Vector2::<f32>::zeros(); particles.len()];
 
         {
             self.grid.populate(
                 &particles,
-                &mut forces_buf,
+                &mut self.forces_buf,
                 &self.alloc,
                 |(x1, y1, _), (x2, y2, _)| {
                     let a = Vector2::new(*x1, *y1);
@@ -146,26 +149,26 @@ impl Simulation {
                     let diff = b - a;
 
                     const EPSILON: f32 = 0.05;
-                    let dist = (EPSILON + diff.norm_squared()).sqrt();
+                    let dist = (EPSILON + diff.x * diff.x + diff.y * diff.y).sqrt();
 
-                    const SIGMA: f32 = 1.0;
+                    const SIGMA6: f32 = 1.0f32; // precomputed sigma^6
                     const E: f32 = 1.0 / 8.0;
 
-                    diff * (6.0 * SIGMA.powi(6) * (dist.powi(6) - 8.0 * E * SIGMA.powi(6)))
-                        / dist.powi(14)
-                        * 0.5
+                    diff * ((6.0 * SIGMA6 * (dist.powi(6) - 8.0 * E * SIGMA6)) / dist.powi(14)
+                        * 0.5)
                 },
             );
         }
 
         self.stars
             .iter_mut()
-            .zip(forces_buf)
+            .zip(&mut self.forces_buf)
             .for_each(|(star, force)| {
                 star.force = force.cast::<f32>();
                 star.vel += star.force;
                 star.vel *= 0.9995;
                 star.mass_point.position += 1e-5 * star.vel;
+                *force = Vector2::zeros();
             });
     }
 }

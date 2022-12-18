@@ -1,8 +1,10 @@
 use crate::colormap;
+use arc_swap::ArcSwap;
 use bytemuck::{Pod, Zeroable};
-use gravsim_simulation::Simulation;
+use gravsim_simulation::{Simulation, Star};
 use std::cmp::Ordering;
 use std::mem::size_of;
+use std::sync::Arc;
 use std::time::Instant;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
@@ -51,8 +53,6 @@ pub struct PushConstants {
 }
 
 pub struct State {
-    pub simulation: Simulation,
-
     pub size: PhysicalSize<u32>,
     pub surface: Surface,
     pub config: SurfaceConfiguration,
@@ -69,12 +69,17 @@ pub struct State {
 
     pub push_constants: PushConstants,
     pub instances: Vec<RenderInstance>,
+    pub stars: Arc<ArcSwap<Vec<Star>>>,
 }
 
 impl State {
     const VERTEX_COUNT: usize = 33;
 
-    pub async fn new(window: &Window, simulation: Simulation) -> Self {
+    pub async fn new(
+        window: &Window,
+        simulation: &Simulation,
+        stars: Arc<ArcSwap<Vec<Star>>>,
+    ) -> Self {
         let size = window.inner_size();
 
         let instance = Instance::new(Backends::VULKAN);
@@ -210,8 +215,6 @@ impl State {
         };
 
         Self {
-            simulation,
-
             size,
             surface,
             config,
@@ -228,6 +231,7 @@ impl State {
 
             push_constants,
             instances,
+            stars,
         }
     }
 
@@ -288,20 +292,14 @@ impl State {
     }
 
     pub fn update(&mut self) {
-        // update simulation state
-        let start = Instant::now();
-        let iters = 30;
-        for _ in 0..iters {
-            self.simulation.update();
-        }
-        println!("{:.5?}", start.elapsed() / iters);
+        let stars = self.stars.load();
 
         // update instance buffer
         self.instances
             .iter_mut()
             .enumerate()
             .for_each(|(i, instance)| {
-                let s = &self.simulation.stars[i];
+                let s = &stars[i];
                 instance.position = [s.mass_point.position.x, s.mass_point.position.y];
                 let force_scale = 0.3;
                 //instance.color = [s.force.x * force_scale + 0.5, s.force.y * force_scale + 0.5, 1.0];
