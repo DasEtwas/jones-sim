@@ -27,14 +27,12 @@ async fn main() {
     let margin = 0.1;
 
     let temp = 0.0;
-    let side_length = 300;
+    let side_length = 200;
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
         Vector2::new(
-            (i % side_length) as f32 + (rng.gen::<f32>() * 2.0 - 1.0) * 1e-2,
-            (i / side_length) as f32
-                + (rng.gen::<f32>() * 2.0 - 1.0) * 1e-2
-                + 0.5 * if i % 2 == 0 { 1.0 } else { 0.0 },
+            (i % side_length) as f32,
+            (i / side_length) as f32 + 0.5 * if i % 2 == 0 { 1.0 } else { 0.0 },
         )
         .component_mul(&Vector2::new(3.0f32.sqrt() * 0.5, 1.0))
     };
@@ -56,27 +54,24 @@ async fn main() {
     let vel = 100.0;
 
     let mut simulation = Simulation::new(
-        (0..count)
-            .map(|i| {
-                let pos = hexagonal_lattice(i, &mut rng);
-                Star::new(
-                    pos + Vector2::repeat(margin * side_length as f32),
-                    //Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
-                    //    * temp,
-                    //if pos.y > side_length as f32 * 0.5 {
-                    //    Vector2::new(vel, -vel * 0.2)
-                    //} else {
-                    //    Vector2::new(-vel, vel * 0.2)
-                    //},
-                    Vector2::new(
-                        pos.y - side_length as f32 * 0.5,
-                        -(pos.x - side_length as f32 * 0.5),
-                    ) * 10.0,
-                    [0.7; 3],
-                    50.0,
-                )
-            })
-            .filter(|_| rng3.gen::<f32>() > 1e-2),
+        (0..count).map(|i| {
+            let pos = hexagonal_lattice(i, &mut rng);
+            Star::new(
+                pos + Vector2::repeat(margin * side_length as f32),
+                Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0) * temp,
+                //if pos.y > side_length as f32 * 0.5 {
+                //    Vector2::new(vel, -vel * 0.2)
+                //} else {
+                //    Vector2::new(-vel, vel * 0.2)
+                //},
+                //Vector2::new(
+                //    pos.y - side_length as f32 * 0.5,
+                //    -(pos.x - side_length as f32 * 0.5),
+                //) * 10.0,
+                [0.7; 3],
+                50.0,
+            )
+        }), //  .filter(|_| rng3.gen::<f32>() > 1e-2),
         side_length as f32,
         2.0,
         margin * 2.0,

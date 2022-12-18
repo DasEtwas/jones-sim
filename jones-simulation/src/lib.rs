@@ -138,14 +138,20 @@ impl Simulation {
             let diff_x = x2 - x1;
             let diff_y = y2 - y1;
 
-            const EPSILON: f32 = 0.05;
-            let dist = (EPSILON + diff_x * diff_x + diff_y * diff_y).sqrt();
+            let dist = (diff_x * diff_x + diff_y * diff_y) as f64;
 
-            const SIGMA6: f32 = 1.0f32; // precomputed sigma^6
-            const E: f32 = 1.0 / 8.0;
+            const DESIRED_RADIUS: f64 = 1.0;
+            const SIGMA_FAC: f64 = 1.122462048309373; // 6th root of 2, the factor of the root relative to sigma
+            const SIGMA: f64 = DESIRED_RADIUS / SIGMA_FAC;
+            const SIGMA6: f64 = SIGMA * SIGMA * SIGMA * SIGMA * SIGMA * SIGMA; // precomputed sigma^6
+            const E: f64 = 0.1;
 
             // dist normally has exponent 13, but using 14 we normalise the diff vector :^)
-            let f = ((6.0 * SIGMA6 * (dist.powi(6) - 8.0 * E * SIGMA6)) / dist.powi(14) * 0.5);
+            // we multiply by 0.5 because we touch every particle twice in interaction (boo!)
+            let f = (((24.0 * E * SIGMA6 * (dist.powi(3) - 2.0 * SIGMA6)) / dist.powi(7)) as f32)
+                .max(-1e7)
+                * 0.5;
+
             Vector2::new(f * diff_x, f * diff_y)
         }
 
@@ -154,8 +160,8 @@ impl Simulation {
             .interact(&particles, &mut self.forces_buf, &grid, interact);
 
         //let damping = 0.0005;
-        let damping = 0.000;
-        //let damping = 0.0004;
+        //let damping = 0.000;
+        let damping = 0.0001;
 
         self.stars
             .iter_mut()

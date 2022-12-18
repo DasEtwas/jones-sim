@@ -5,7 +5,6 @@ use jones_simulation::{Simulation, Star};
 use std::cmp::Ordering;
 use std::mem::size_of;
 use std::sync::Arc;
-use std::time::Instant;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
     include_spirv, vertex_attr_array, Backends, BlendState, Buffer, BufferUsages, Color,
