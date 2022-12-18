@@ -24,17 +24,19 @@ async fn main() {
     let mut rng2 = StdRng::from_entropy();
     let mut rng3 = StdRng::from_entropy();
 
-    let margin = 0.1;
+    let margin = 0.0;
 
     let temp = 0.0;
-    let side_length = 200;
+    let side_length = 60;
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
+        let f = 3.0f32.sqrt() * 0.5;
+        let n = (side_length as f32 / f) as usize;
+
         Vector2::new(
-            (i % side_length) as f32,
-            (i / side_length) as f32 + 0.5 * if i % 2 == 0 { 1.0 } else { 0.0 },
+            (i % n) as f32 * f,
+            (i / n) as f32 + 0.5 * if i % 2 == 0 { 1.0 } else { 0.0 },
         )
-        .component_mul(&Vector2::new(3.0f32.sqrt() * 0.5, 1.0))
     };
 
     let rectangular_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
@@ -49,6 +51,7 @@ async fn main() {
     };
 
     let count = side_length * side_length;
+    let count = side_length * (side_length as f32 / (3.0f32.sqrt() * 0.5) - 1.0) as usize;
     //let count = side_length * side_length / 4;
 
     let vel = 100.0;
@@ -60,7 +63,8 @@ async fn main() {
                 Star::new(
                     pos + Vector2::repeat(margin * side_length as f32),
                     Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
-                        * temp,
+                        * temp
+                        + Vector2::x() * 100.0,
                     //if pos.y > side_length as f32 * 0.5 {
                     //    Vector2::new(vel, -vel * 0.2)
                     //} else {
@@ -87,7 +91,7 @@ async fn main() {
     std::thread::spawn(move || loop {
         // update simulation state
         let start = Instant::now();
-        let iters = 30;
+        let iters = 4;
         for _ in 0..iters {
             simulation.update();
         }

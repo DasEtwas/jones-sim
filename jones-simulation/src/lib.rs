@@ -1,11 +1,8 @@
 use crate::hashgrid::HashGrid;
-use nalgebra::{Vector2, Vector3};
-use rand::{Rng, SeedableRng};
-use rand_xorshift::XorShiftRng;
+use nalgebra::Vector2;
 use serde::{Deserialize, Serialize};
 
 pub mod hashgrid;
-pub mod tree;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Star {
@@ -61,10 +58,6 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub const SCALE: f32 = 5000.0;
-    pub const THETA: f32 = 0.75;
-    pub const GRAVITY: f32 = 1e-4;
-
     pub fn new<I>(stars: I, side_length: f32, cell_size: f32, margin: f32) -> Self
     where
         I: IntoIterator<Item = Star>,
@@ -77,56 +70,12 @@ impl Simulation {
                 (side_length * (1.0 + margin) / cell_size) as usize,
                 (side_length * (1.0 + margin) / cell_size) as usize,
                 cell_size,
+                true,
             ),
         }
     }
 
     pub fn update(&mut self) {
-        /*let mut tree = Node::new_root(-Vector2::repeat(Self::SCALE / 2.0), Self::SCALE);
-
-        // insert stars into tree
-        for star in &self.stars {
-            if tree.contains(star.pos()) {
-                tree.insert(&star.mass_point);
-            }
-        }
-
-        let starslol = self.stars.clone();
-
-        // calculate force on stars
-        self.stars
-            .par_iter_mut()
-            .for_each(|star| {
-                // let force = tree.force_on(&star.mass_point);
-
-                let mut force = Vector2::zeros();
-                for b in &starslol {
-                    let diff = b.mass_point.position - star.mass_point.position;
-
-                    const EPSILON: f32 = 0.05;
-                    let dist = (EPSILON + diff.norm_squared()).sqrt();
-
-                    const SIGMA: f32 = 1.0;
-                    const E: f32 = 1.0 / 8.0;
-
-                    force += diff
-                        * (6.0 * SIGMA.powi(6) * (dist.powi(6) - 8.0 * E * SIGMA.powi(6)))
-                        / dist.powi(14)
-                }
-
-                star.vel += force;
-                star.force = force;
-
-                // integration can be done here because tree doesn't change
-                star.mass_point.position += 1e-6 * star.vel;
-            });
-
-        self.stars
-            .iter_mut()
-            .filter(|star| !tree.contains(star.pos()))
-            .for_each(|star| star.mass_point.position = Vector2::from_element(f32::NAN))
-            */
-
         let particles = self
             .stars
             .iter()
@@ -134,11 +83,8 @@ impl Simulation {
             .collect::<Vec<_>>();
 
         #[inline]
-        fn interact((x1, y1, _): &(f32, f32, &()), (x2, y2, _): &(f32, f32, &())) -> Vector2<f32> {
-            let diff_x = x2 - x1;
-            let diff_y = y2 - y1;
-
-            let dist = (diff_x * diff_x + diff_y * diff_y) as f64;
+        fn interact(dx: f32, dy: f32, _: &(), _: &()) -> Vector2<f32> {
+            let dist = (dx * dx + dy * dy) as f64;
 
             const DESIRED_RADIUS: f64 = 1.0;
             const SIGMA_FAC: f64 = 1.122462048309373; // 6th root of 2, the factor of the root relative to sigma
@@ -152,7 +98,7 @@ impl Simulation {
                 .max(-1e7)
                 * 0.5;
 
-            Vector2::new(f * diff_x, f * diff_y)
+            Vector2::new(f * dx, f * dy)
         }
 
         let grid = self.grid.populate(&particles);
@@ -170,54 +116,23 @@ impl Simulation {
                 star.force = force.cast::<f32>();
                 star.vel += star.force;
                 star.vel *= 1.0 - damping;
-                star.mass_point.position += 1e-5 * star.vel;
+                star.mass_point.position += 1e-6 * star.vel;
+
+                if self.grid.periodic() {
+                    star.mass_point.position.x = star
+                        .mass_point
+                        .position
+                        .x
+                        .rem_euclid(self.grid.size_x() as f32 * self.grid.cell_size());
+                    star.mass_point.position.y = star
+                        .mass_point
+                        .position
+                        .y
+                        .rem_euclid(self.grid.size_y() as f32 * self.grid.cell_size());
+                }
+
                 *force = Vector2::zeros();
             });
-    }
-}
-
-pub struct Galaxy {
-    /// `stars[0]` is the center
-    stars: Vec<Star>,
-}
-
-impl Galaxy {
-    pub fn new(
-        center: Star,
-        num_stars: usize,
-        radius: f32,
-        mass_distribution: &MassDistribution,
-        color: [f32; 3],
-    ) -> Self {
-        let mut rng = XorShiftRng::from_entropy();
-
-        Self {
-            stars: [center]
-                .into_iter()
-                .chain((0..num_stars).map(|_| {
-                    let a = rng.gen::<f32>() * std::f32::consts::TAU;
-                    let d = rng.gen::<f32>().sqrt() * radius;
-
-                    let relative_pos = Vector2::new(a.sin(), a.cos()) * d;
-                    let n = Vector3::cross(
-                        &*Vector3::z_axis(),
-                        &Vector3::new(relative_pos.x, relative_pos.y, 0.0),
-                    );
-                    let velocity = (Simulation::GRAVITY * center.mass() / d).sqrt();
-
-                    Star::new(
-                        center.pos() + relative_pos,
-                        center.vel + n.xy().normalize() * velocity,
-                        color,
-                        1.0 + mass_distribution.sample(rng.gen()),
-                    )
-                }))
-                .collect(),
-        }
-    }
-
-    pub fn stars(&self) -> &Vec<Star> {
-        &self.stars
     }
 }
 
