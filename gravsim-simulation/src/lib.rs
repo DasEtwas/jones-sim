@@ -1,12 +1,12 @@
-use crate::tree::Node;
+use crate::hashgrid::HashGrid;
+use bumpalo::Bump;
 use nalgebra::{Vector2, Vector3};
 use rand::{Rng, SeedableRng};
 use rand_xorshift::XorShiftRng;
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-pub mod tree;
 pub mod hashgrid;
+pub mod tree;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Star {
@@ -57,6 +57,8 @@ pub struct MassData {
 
 pub struct Simulation {
     pub stars: Vec<Star>,
+    pub grid: HashGrid,
+    pub alloc: Bump,
 }
 
 impl Simulation {
@@ -64,17 +66,23 @@ impl Simulation {
     pub const THETA: f32 = 0.75;
     pub const GRAVITY: f32 = 1e-4;
 
-    pub fn new<I>(stars: I) -> Self
-        where
-            I: IntoIterator<Item=Star>,
+    pub fn new<I>(stars: I, side_length: usize, cell_size: f32) -> Self
+    where
+        I: IntoIterator<Item = Star>,
     {
         Self {
             stars: stars.into_iter().collect(),
+            grid: HashGrid::new(
+                (side_length as f32 / cell_size) as usize,
+                (side_length as f32 / cell_size) as usize,
+                cell_size,
+            ),
+            alloc: Bump::new(),
         }
     }
 
     pub fn update(&mut self) {
-        let mut tree = Node::new_root(-Vector2::repeat(Self::SCALE / 2.0), Self::SCALE);
+        /*let mut tree = Node::new_root(-Vector2::repeat(Self::SCALE / 2.0), Self::SCALE);
 
         // insert stars into tree
         for star in &self.stars {
@@ -117,6 +125,48 @@ impl Simulation {
             .iter_mut()
             .filter(|star| !tree.contains(star.pos()))
             .for_each(|star| star.mass_point.position = Vector2::from_element(f32::NAN))
+            */
+
+        let particles = self
+            .stars
+            .iter()
+            .map(|star| (star.mass_point.position.x, star.mass_point.position.y, star))
+            .collect::<Vec<_>>();
+        let mut forces_buf = vec![Vector2::<f32>::zeros(); particles.len()];
+
+        {
+            self.grid.populate(
+                &particles,
+                &mut forces_buf,
+                &self.alloc,
+                |(x1, y1, _), (x2, y2, _)| {
+                    let a = Vector2::new(*x1, *y1);
+                    let b = Vector2::new(*x2, *y2);
+
+                    let diff = b - a;
+
+                    const EPSILON: f32 = 0.05;
+                    let dist = (EPSILON + diff.norm_squared()).sqrt();
+
+                    const SIGMA: f32 = 1.0;
+                    const E: f32 = 1.0 / 8.0;
+
+                    diff * (6.0 * SIGMA.powi(6) * (dist.powi(6) - 8.0 * E * SIGMA.powi(6)))
+                        / dist.powi(14)
+                        * 0.5
+                },
+            );
+        }
+
+        self.stars
+            .iter_mut()
+            .zip(forces_buf)
+            .for_each(|(star, force)| {
+                star.force = force.cast::<f32>();
+                star.vel += star.force;
+                star.vel *= 0.9995;
+                star.mass_point.position += 1e-5 * star.vel;
+            });
     }
 }
 

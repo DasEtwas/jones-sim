@@ -1,7 +1,9 @@
+use crate::colormap;
 use bytemuck::{Pod, Zeroable};
 use gravsim_simulation::Simulation;
 use std::cmp::Ordering;
 use std::mem::size_of;
+use std::time::Instant;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
     include_spirv, vertex_attr_array, Backends, BlendState, Buffer, BufferUsages, Color,
@@ -159,12 +161,17 @@ impl State {
             multiview: None,
         });
 
-        let vertices: Vec<_> = std::iter::once(Vertex { position: [0.0, 0.0] }).chain((0..Self::VERTEX_COUNT - 1)
-            .map(|i| i as f32 / (Self::VERTEX_COUNT - 2) as f32 * std::f32::consts::TAU)
-            .map(|a| Vertex {
-                position: [-a.sin() * 0.5, a.cos() * 0.5],
-            }))
-            .collect();
+        let vertices: Vec<_> = std::iter::once(Vertex {
+            position: [0.0, 0.0],
+        })
+        .chain(
+            (0..Self::VERTEX_COUNT - 1)
+                .map(|i| i as f32 / (Self::VERTEX_COUNT - 2) as f32 * std::f32::consts::TAU)
+                .map(|a| Vertex {
+                    position: [-a.sin() * 0.5, a.cos() * 0.5],
+                }),
+        )
+        .collect();
         let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&vertices),
@@ -242,11 +249,11 @@ impl State {
         match event {
             WindowEvent::KeyboardInput {
                 input:
-                KeyboardInput {
-                    state: ElementState::Pressed,
-                    virtual_keycode: Some(key),
-                    ..
-                },
+                    KeyboardInput {
+                        state: ElementState::Pressed,
+                        virtual_keycode: Some(key),
+                        ..
+                    },
                 ..
             } => match key {
                 VirtualKeyCode::W | VirtualKeyCode::Up => {
@@ -282,18 +289,23 @@ impl State {
 
     pub fn update(&mut self) {
         // update simulation state
-        for _ in 0..30 {
+        let start = Instant::now();
+        let iters = 30;
+        for _ in 0..iters {
             self.simulation.update();
         }
+        println!("{:.5?}", start.elapsed() / iters);
 
         // update instance buffer
-        self.instances.iter_mut()
+        self.instances
+            .iter_mut()
             .enumerate()
             .for_each(|(i, instance)| {
                 let s = &self.simulation.stars[i];
                 instance.position = [s.mass_point.position.x, s.mass_point.position.y];
                 let force_scale = 0.3;
-                instance.color = [s.force.x * force_scale + 0.5, s.force.y * force_scale + 0.5, 1.0];
+                //instance.color = [s.force.x * force_scale + 0.5, s.force.y * force_scale + 0.5, 1.0];
+                instance.color = colormap::map(force_scale * s.force.norm(), &colormap::TURBO);
             });
     }
 
