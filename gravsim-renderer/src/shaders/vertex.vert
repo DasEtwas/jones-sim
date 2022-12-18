@@ -21,7 +21,7 @@ layout (location = 6) out float centerDistance;
 void main() {
     out_vColor = in_iColor;
 
-    vec2 position = vec2(uniforms.renderOffsX, uniforms.renderOffsZ) + in_vPos * in_iRadius;
+    vec2 position = in_vPos * in_iRadius - vec2(uniforms.renderOffsX, uniforms.renderOffsZ);
     gl_Position = vec4(vec3((position + in_iPos) * vec2(uniforms.invAspect, 1.0) * uniforms.renderScale, 0.0), 1.0);
     centerDistance = length(in_vPos);
 }

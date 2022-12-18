@@ -13,7 +13,6 @@ smallvec = "1.10.0"
 num_enum = "0.5.7"
 rayon = "1.5.3"
 rand = "0.8.5"
-bumpalo = { version = "3.11", features = ["collections"] }
 
 [dev-dependencies]
 criterion = {version = "0.3.6", features = ["html_reports"]}

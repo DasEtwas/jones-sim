@@ -210,8 +210,14 @@ impl State {
 
         let push_constants = PushConstants {
             inv_aspect: size.height as f32 / size.width as f32,
-            render_scale: 1.0,
-            pos: [0.0; 2],
+            render_scale: (simulation.grid.cell_size() * simulation.grid.size_x() as f32)
+                .max(simulation.grid.cell_size() * simulation.grid.size_y() as f32)
+                .recip()
+                * 2.0,
+            pos: [
+                simulation.grid.cell_size() * simulation.grid.size_x() as f32 * 0.5,
+                simulation.grid.cell_size() * simulation.grid.size_y() as f32 * 0.5,
+            ],
         };
 
         Self {
@@ -261,16 +267,16 @@ impl State {
                 ..
             } => match key {
                 VirtualKeyCode::W | VirtualKeyCode::Up => {
-                    self.push_constants.pos[1] -= STEP / self.push_constants.render_scale
-                }
-                VirtualKeyCode::A | VirtualKeyCode::Left => {
-                    self.push_constants.pos[0] += STEP / self.push_constants.render_scale
-                }
-                VirtualKeyCode::S | VirtualKeyCode::Down => {
                     self.push_constants.pos[1] += STEP / self.push_constants.render_scale
                 }
-                VirtualKeyCode::D | VirtualKeyCode::Right => {
+                VirtualKeyCode::A | VirtualKeyCode::Left => {
                     self.push_constants.pos[0] -= STEP / self.push_constants.render_scale
+                }
+                VirtualKeyCode::S | VirtualKeyCode::Down => {
+                    self.push_constants.pos[1] -= STEP / self.push_constants.render_scale
+                }
+                VirtualKeyCode::D | VirtualKeyCode::Right => {
+                    self.push_constants.pos[0] += STEP / self.push_constants.render_scale
                 }
                 VirtualKeyCode::Return => {
                     self.push_constants.render_scale = 1.0;
@@ -291,8 +297,10 @@ impl State {
         true
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> f32 {
         let stars = self.stars.load();
+
+        let mut avg_energy_kinetic = 0.0;
 
         // update instance buffer
         self.instances
@@ -302,9 +310,15 @@ impl State {
                 let s = &stars[i];
                 instance.position = [s.mass_point.position.x, s.mass_point.position.y];
                 let force_scale = 0.3;
+                avg_energy_kinetic += s.vel.norm_squared();
+
                 //instance.color = [s.force.x * force_scale + 0.5, s.force.y * force_scale + 0.5, 1.0];
                 instance.color = colormap::map(force_scale * s.force.norm(), &colormap::TURBO);
             });
+
+        let temp = avg_energy_kinetic * 0.5 / stars.len() as f32 * 2.0 / 3.0;
+
+        temp
     }
 
     pub fn render(&mut self) -> Result<(), SurfaceError> {

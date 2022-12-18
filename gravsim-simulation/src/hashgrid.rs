@@ -1,4 +1,3 @@
-use bumpalo::Bump;
 use smallvec::SmallVec;
 use std::ops::{AddAssign, Neg};
 
@@ -37,15 +36,10 @@ impl HashGrid {
         (hash / self.size_y, hash % self.size_x)
     }
 
-    pub fn populate<'a, P, F: AddAssign + Neg<Output = F> + Copy>(
+    pub fn populate<P>(
         &mut self,
         particles: &[(Coordinate, Coordinate, &P)],
-        forces_buffer: &mut [F],
-        alloc: &'a Bump,
-        interact: impl Fn(&(Coordinate, Coordinate, &P), &(Coordinate, Coordinate, &P)) -> F,
-    ) {
-        assert_eq!(particles.len(), forces_buffer.len());
-
+    ) -> Vec<Option<GridCell>> {
         let mut grid: Vec<Option<GridCell>> = std::iter::repeat(None)
             .take(self.size_x * self.size_y)
             .collect();
@@ -63,6 +57,17 @@ impl HashGrid {
             }
         }
 
+        grid
+    }
+
+    pub fn interact<'a, P, F: AddAssign + Neg<Output = F> + Copy>(
+        &mut self,
+        particles: &[(Coordinate, Coordinate, &P)],
+        forces_buffer: &mut [F],
+        grid: &[Option<GridCell>],
+        interact: impl Fn(&(Coordinate, Coordinate, &P), &(Coordinate, Coordinate, &P)) -> F,
+    ) {
+        assert_eq!(particles.len(), forces_buffer.len());
         let mut max = 0;
 
         for (cell_hash, cell) in grid
@@ -98,6 +103,18 @@ impl HashGrid {
             }
         }
         //println!("{}", max);
+    }
+
+    pub fn size_x(&self) -> usize {
+        self.size_x
+    }
+
+    pub fn size_y(&self) -> usize {
+        self.size_y
+    }
+
+    pub fn cell_size(&self) -> Coordinate {
+        self.cell_size
     }
 }
 

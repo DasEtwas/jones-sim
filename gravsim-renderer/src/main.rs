@@ -24,8 +24,10 @@ async fn main() {
     let mut rng2 = StdRng::from_entropy();
     let mut rng3 = StdRng::from_entropy();
 
+    let margin = 0.1;
+
     let temp = 0.0;
-    let side_length = 300;
+    let side_length = 100;
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
         Vector2::new(
@@ -35,6 +37,10 @@ async fn main() {
                 + 0.5 * if i % 2 == 0 { 1.0 } else { 0.0 },
         )
         .component_mul(&Vector2::new(3.0f32.sqrt() * 0.5, 1.0))
+    };
+
+    let rectangular_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
+        Vector2::new((i % side_length) as f32, (i / side_length) as f32)
     };
 
     let random = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
@@ -47,21 +53,29 @@ async fn main() {
     let count = side_length * side_length;
     //let count = side_length * side_length / 4;
 
+    let vel = 100.0;
+
     let mut simulation = Simulation::new(
         (0..count)
             .map(|i| {
+                let pos = hexagonal_lattice(i, &mut rng);
                 Star::new(
-                    hexagonal_lattice(i, &mut rng),
-                    //random(i, &mut rng),
-                    Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
-                        * temp,
+                    pos + Vector2::repeat(margin * side_length as f32),
+                    //Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
+                    //    * temp,
+                    if pos.y > side_length as f32 * 0.5 {
+                        Vector2::new(vel, -vel * 0.2)
+                    } else {
+                        Vector2::new(-vel, vel * 0.2)
+                    },
                     [0.7; 3],
                     50.0,
                 )
             })
             .filter(|_| rng3.gen::<f32>() > 1e-2),
-        side_length,
+        side_length as f32,
         2.0,
+        margin * 2.0,
     );
 
     let stars = Arc::new(ArcSwap::from_pointee(simulation.stars.clone()));
@@ -107,7 +121,10 @@ async fn main() {
         {
             last = Instant::now();
 
-            state.update();
+            let temp = state.update();
+
+            window.set_title(&format!("Temperature: {:.3}", temp));
+
             match state.render() {
                 Ok(_) => {}
                 Err(e) => match e {

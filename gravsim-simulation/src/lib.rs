@@ -1,9 +1,7 @@
 use crate::hashgrid::HashGrid;
-use bumpalo::Bump;
 use nalgebra::{Vector2, Vector3};
 use rand::{Rng, SeedableRng};
 use rand_xorshift::XorShiftRng;
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub mod hashgrid;
@@ -60,7 +58,6 @@ pub struct Simulation {
     pub stars: Vec<Star>,
     pub forces_buf: Vec<Vector2<f32>>,
     pub grid: HashGrid,
-    pub alloc: Bump,
 }
 
 impl Simulation {
@@ -68,7 +65,7 @@ impl Simulation {
     pub const THETA: f32 = 0.75;
     pub const GRAVITY: f32 = 1e-4;
 
-    pub fn new<I>(stars: I, side_length: usize, cell_size: f32) -> Self
+    pub fn new<I>(stars: I, side_length: f32, cell_size: f32, margin: f32) -> Self
     where
         I: IntoIterator<Item = Star>,
     {
@@ -77,11 +74,10 @@ impl Simulation {
             forces_buf: vec![Vector2::<f32>::zeros(); stars.len()],
             stars,
             grid: HashGrid::new(
-                (side_length as f32 / cell_size) as usize,
-                (side_length as f32 / cell_size) as usize,
+                (side_length * (1.0 + margin) / cell_size) as usize,
+                (side_length * (1.0 + margin) / cell_size) as usize,
                 cell_size,
             ),
-            alloc: Bump::new(),
         }
     }
 
@@ -134,31 +130,32 @@ impl Simulation {
         let particles = self
             .stars
             .iter()
-            .map(|star| (star.mass_point.position.x, star.mass_point.position.y, star))
+            .map(|star| (star.mass_point.position.x, star.mass_point.position.y, &()))
             .collect::<Vec<_>>();
 
-        {
-            self.grid.populate(
-                &particles,
-                &mut self.forces_buf,
-                &self.alloc,
-                |(x1, y1, _), (x2, y2, _)| {
-                    let a = Vector2::new(*x1, *y1);
-                    let b = Vector2::new(*x2, *y2);
+        #[inline]
+        fn interact((x1, y1, _): &(f32, f32, &()), (x2, y2, _): &(f32, f32, &())) -> Vector2<f32> {
+            let diff_x = x2 - x1;
+            let diff_y = y2 - y1;
 
-                    let diff = b - a;
+            const EPSILON: f32 = 0.05;
+            let dist = (EPSILON + diff_x * diff_x + diff_y * diff_y).sqrt();
 
-                    const EPSILON: f32 = 0.05;
-                    let dist = (EPSILON + diff.x * diff.x + diff.y * diff.y).sqrt();
+            const SIGMA6: f32 = 1.0f32; // precomputed sigma^6
+            const E: f32 = 1.0 / 8.0;
 
-                    const SIGMA6: f32 = 1.0f32; // precomputed sigma^6
-                    const E: f32 = 1.0 / 8.0;
-
-                    diff * ((6.0 * SIGMA6 * (dist.powi(6) - 8.0 * E * SIGMA6)) / dist.powi(14)
-                        * 0.5)
-                },
-            );
+            // dist normally has exponent 13, but using 14 we normalise the diff vector :^)
+            let f = ((6.0 * SIGMA6 * (dist.powi(6) - 8.0 * E * SIGMA6)) / dist.powi(14) * 0.5);
+            Vector2::new(f * diff_x, f * diff_y)
         }
+
+        let grid = self.grid.populate(&particles);
+        self.grid
+            .interact(&particles, &mut self.forces_buf, &grid, interact);
+
+        //let damping = 0.0005;
+        let damping = 0.000;
+        //let damping = 0.0004;
 
         self.stars
             .iter_mut()
@@ -166,7 +163,7 @@ impl Simulation {
             .for_each(|(star, force)| {
                 star.force = force.cast::<f32>();
                 star.vel += star.force;
-                star.vel *= 0.9995;
+                star.vel *= 1.0 - damping;
                 star.mass_point.position += 1e-5 * star.vel;
                 *force = Vector2::zeros();
             });
