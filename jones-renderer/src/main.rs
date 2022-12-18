@@ -3,7 +3,7 @@ pub mod state;
 
 use crate::state::State;
 use arc_swap::ArcSwap;
-use gravsim_simulation::{MassDistribution, Simulation, Star};
+use jones_simulation::{MassDistribution, Simulation, Star};
 use nalgebra::Vector2;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};

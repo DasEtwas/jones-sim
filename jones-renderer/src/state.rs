@@ -1,7 +1,7 @@
 use crate::colormap;
 use arc_swap::ArcSwap;
 use bytemuck::{Pod, Zeroable};
-use gravsim_simulation::{Simulation, Star};
+use jones_simulation::{Simulation, Star};
 use std::cmp::Ordering;
 use std::mem::size_of;
 use std::sync::Arc;

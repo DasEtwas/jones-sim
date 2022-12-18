@@ -1,5 +1,5 @@
 [workspace]
-members = ["gravsim-renderer", "gravsim-simulation"]
+members = ["jones-renderer", "jones-simulation"]
 resolver = "2"
 
 [profile.dev]

@@ -1,12 +1,12 @@
 [package]
-name = "gravsim-renderer"
+name = "jones-renderer"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 bytemuck = { version = "1.10.0", features = ["derive"] }
-gravsim-simulation = { path = "../gravsim-simulation"}
+jones-simulation = { path = "../jones-simulation" }
 wgpu = { version = "0.13.1", features = ["spirv"] }
 tokio = { version = "1.20.0", features = ["full"] }
 nalgebra = "0.31.0"
