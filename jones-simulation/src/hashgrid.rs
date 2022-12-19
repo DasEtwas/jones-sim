@@ -62,6 +62,7 @@ impl HashGrid {
             } else {
                 let mut cell = GridCell {
                     particles: SmallVec::new(),
+                    //interacted_with: 0,
                 };
                 cell.particles.push(id);
                 grid[hash] = Some(cell);
@@ -183,4 +184,21 @@ impl HashGrid {
 #[derive(Clone)]
 pub struct GridCell {
     particles: SmallVec<[ParticleId; 8]>,
+    //interacted_with: u8,
 }
+
+/*
+impl GridCell {
+    pub fn has_interacted_with(&self, dx: i32, dy: i32) -> bool {
+        (self.interacted_with & (1 << Self::bit_index(dx, dy))) != 0
+    }
+
+    pub fn mark_interacted(&mut self, dx: i32, dy: i32) {
+        self.interacted_with |= 1 << Self::bit_index(dx, dy);
+    }
+
+    fn bit_index(dx: i32, dy: i32) -> usize {
+        (dx + 1) as usize + (dy + 1) as usize * 3
+    }
+}
+*/

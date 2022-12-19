@@ -59,7 +59,6 @@ async fn main() {
             Star::new(
                 pos + Vector2::repeat(margin * side_length as f32),
                 Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0) * temp,
-                //+ Vector2::x() * 100.0,
                 //if pos.y > side_length as f32 * 0.5 {
                 //    Vector2::new(vel, -vel * 0.2)
                 //} else {
@@ -85,14 +84,23 @@ async fn main() {
 
     std::thread::spawn(move || {
         //std::thread::sleep(Duration::from_secs(5));
+
+        let mut start = Instant::now();
+        let mut tick = 0;
         loop {
             // update simulation state
-            let start = Instant::now();
-            let iters = 4;
-            for _ in 0..iters {
-                simulation.update();
+
+            simulation.update();
+            tick += 1;
+
+            let now = Instant::now();
+            let e = now.duration_since(start);
+            if e > Duration::from_millis(340) {
+                println!("Avg step time {:.3?}", e / tick);
+                start = now;
+                tick = 0;
             }
-            println!("{:.5?}", start.elapsed() / iters);
+
             stars.store(Arc::new(simulation.stars.clone()));
         }
     });

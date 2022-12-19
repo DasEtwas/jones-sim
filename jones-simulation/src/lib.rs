@@ -55,6 +55,23 @@ pub struct Simulation {
     pub stars: Vec<Star>,
     pub forces_buf: Vec<Vector2<f32>>,
     pub grid: HashGrid,
+
+    pub jones_lut: Vec<f32>,
+    pub jones_lut_fac: f32,
+}
+
+/// Positive output means there is an attractive force
+#[inline]
+fn lennard_jones(dist_sq: f32) -> f32 {
+    const DESIRED_RADIUS: f32 = 1.0;
+    const SIGMA_FAC: f32 = 1.122462048309373; // 6th root of 2, the factor of the root relative to sigma
+    const SIGMA: f32 = DESIRED_RADIUS / SIGMA_FAC;
+    const SIGMA6: f32 = SIGMA * SIGMA * SIGMA * SIGMA * SIGMA * SIGMA; // precomputed sigma^6
+    const E: f32 = 0.1;
+
+    // dist normally has exponent 13, but using 14 we normalise the diff vector :^)
+    // we multiply by 0.5 because we touch every particle twice in interaction (boo!)
+    (((24.0 * E * SIGMA6 * (dist_sq.powi(3) - 2.0 * SIGMA6)) / dist_sq.powi(6)) as f32).max(-1e7)
 }
 
 impl Simulation {
@@ -63,6 +80,16 @@ impl Simulation {
         I: IntoIterator<Item = Star>,
     {
         let stars: Vec<Star> = stars.into_iter().collect();
+
+        let lut_size = 256;
+        let lut_max_function_value = 16.0;
+        let lut_fac = lut_max_function_value / lut_size as f32;
+        let mut lut = vec![];
+        for i in 0..lut_size {
+            let f = i as f32 * lut_fac;
+            lut.push(lennard_jones(f));
+        }
+
         Self {
             forces_buf: vec![Vector2::<f32>::zeros(); stars.len()],
             stars,
@@ -72,6 +99,8 @@ impl Simulation {
                 cell_size,
                 true,
             ),
+            jones_lut_fac: lut_fac.recip(),
+            jones_lut: lut,
         }
     }
 
@@ -84,22 +113,26 @@ impl Simulation {
 
         #[inline]
         fn interact(dx: f32, dy: f32, _: &(), _: &()) -> Vector2<f32> {
-            let dist = (dx * dx + dy * dy) as f64;
+            let dist_sq = (dx * dx + dy * dy);
 
-            const DESIRED_RADIUS: f64 = 1.0;
-            const SIGMA_FAC: f64 = 1.122462048309373; // 6th root of 2, the factor of the root relative to sigma
-            const SIGMA: f64 = DESIRED_RADIUS / SIGMA_FAC;
-            const SIGMA6: f64 = SIGMA * SIGMA * SIGMA * SIGMA * SIGMA * SIGMA; // precomputed sigma^6
-            const E: f64 = 0.1;
-
-            // dist normally has exponent 13, but using 14 we normalise the diff vector :^)
-            // we multiply by 0.5 because we touch every particle twice in interaction (boo!)
-            let f = (((24.0 * E * SIGMA6 * (dist.powi(3) - 2.0 * SIGMA6)) / dist.powi(7)) as f32)
-                .max(-1e7)
-                * 0.5;
+            let f = lennard_jones(dist_sq) / dist_sq.sqrt() * 0.5;
 
             Vector2::new(f * dx, f * dy)
         }
+
+        // slower lol
+        let interact_lut = |dx: f32, dy: f32, _: &(), _: &()| -> Vector2<f32> {
+            let dist_sq = (dx * dx + dy * dy);
+
+            let lut = *self
+                .jones_lut
+                .get((dist_sq * self.jones_lut_fac) as usize)
+                .unwrap_or(&0.0);
+
+            let f = lut / dist_sq.sqrt() * 0.5;
+
+            Vector2::new(f * dx, f * dy)
+        };
 
         let grid = self.grid.populate(&particles);
         self.grid
