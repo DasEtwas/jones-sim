@@ -30,12 +30,9 @@ async fn main() {
     let side_length = 60;
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
-        let f = 3.0f32.sqrt() * 0.5;
-        let n = (side_length as f32 / f) as usize;
-
         Vector2::new(
-            (i % n) as f32 * f,
-            (i / n) as f32 + 0.5 * if i % 2 == 0 { 1.0 } else { 0.0 },
+            ((i % side_length) as f32 + if (i / side_length) % 2 == 0 { 0.5 } else { 0.0 }),
+            (i / side_length) as f32 * 3.0f32.sqrt() * 0.5,
         )
     };
 
@@ -51,34 +48,32 @@ async fn main() {
     };
 
     let count = side_length * side_length;
-    let count = side_length * (side_length as f32 / (3.0f32.sqrt() * 0.5) - 1.0) as usize;
+    let count = side_length * (side_length as f32 / (3.0f32.sqrt() * 0.5)).ceil() as usize;
     //let count = side_length * side_length / 4;
 
     let vel = 100.0;
 
     let mut simulation = Simulation::new(
-        (0..count)
-            .map(|i| {
-                let pos = hexagonal_lattice(i, &mut rng);
-                Star::new(
-                    pos + Vector2::repeat(margin * side_length as f32),
-                    Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
-                        * temp
-                        + Vector2::x() * 100.0,
-                    //if pos.y > side_length as f32 * 0.5 {
-                    //    Vector2::new(vel, -vel * 0.2)
-                    //} else {
-                    //    Vector2::new(-vel, vel * 0.2)
-                    //},
-                    //Vector2::new(
-                    //    pos.y - side_length as f32 * 0.5,
-                    //    -(pos.x - side_length as f32 * 0.5),
-                    //) * 10.0,
-                    [0.7; 3],
-                    50.0,
-                )
-            })
-            .filter(|_| rng3.gen::<f32>() > 1e-1),
+        (0..count).map(|i| {
+            let pos = hexagonal_lattice(i, &mut rng);
+            Star::new(
+                pos + Vector2::repeat(margin * side_length as f32),
+                Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0) * temp,
+                //+ Vector2::x() * 100.0,
+                //if pos.y > side_length as f32 * 0.5 {
+                //    Vector2::new(vel, -vel * 0.2)
+                //} else {
+                //    Vector2::new(-vel, vel * 0.2)
+                //},
+                //Vector2::new(
+                //    pos.y - side_length as f32 * 0.5,
+                //    -(pos.x - side_length as f32 * 0.5),
+                //) * 10.0,
+                [0.7; 3],
+                50.0,
+            )
+        }),
+        //  .filter(|_| rng3.gen::<f32>() > 1e-1),
         side_length as f32,
         2.0,
         margin * 2.0,
@@ -88,15 +83,18 @@ async fn main() {
 
     let mut state = State::new(&window, &simulation, stars.clone()).await;
 
-    std::thread::spawn(move || loop {
-        // update simulation state
-        let start = Instant::now();
-        let iters = 4;
-        for _ in 0..iters {
-            simulation.update();
+    std::thread::spawn(move || {
+        //std::thread::sleep(Duration::from_secs(5));
+        loop {
+            // update simulation state
+            let start = Instant::now();
+            let iters = 4;
+            for _ in 0..iters {
+                simulation.update();
+            }
+            println!("{:.5?}", start.elapsed() / iters);
+            stars.store(Arc::new(simulation.stars.clone()));
         }
-        println!("{:.5?}", start.elapsed() / iters);
-        stars.store(Arc::new(simulation.stars.clone()));
     });
 
     let mut last = Instant::now();

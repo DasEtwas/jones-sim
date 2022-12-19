@@ -308,12 +308,11 @@ impl State {
             .for_each(|(i, instance)| {
                 let s = &stars[i];
                 instance.position = [s.mass_point.position.x, s.mass_point.position.y];
-                let force_scale = 0.3;
+                let force_scale = 0.06;
                 avg_energy_kinetic += s.vel.norm_squared();
 
                 //instance.color = [s.force.x * force_scale + 0.5, s.force.y * force_scale + 0.5, 1.0];
-                instance.color =
-                    colormap::map(force_scale * s.force.norm() * 0.2, &colormap::TURBO);
+                instance.color = colormap::map(force_scale * s.force.norm(), &colormap::TURBO);
             });
 
         let temp = avg_energy_kinetic * 0.5 / stars.len() as f32 * 2.0 / 3.0;
