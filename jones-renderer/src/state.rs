@@ -277,6 +277,8 @@ impl State {
                 VirtualKeyCode::D | VirtualKeyCode::Right => {
                     self.push_constants.pos[0] += STEP / self.push_constants.render_scale
                 }
+                VirtualKeyCode::PageUp => self.push_constants.render_scale *= 0.8,
+                VirtualKeyCode::PageDown => self.push_constants.render_scale /= 0.8,
                 VirtualKeyCode::Return => {
                     self.push_constants.render_scale = 1.0;
                     self.push_constants.pos = [0.0; 2];
@@ -287,7 +289,7 @@ impl State {
                 delta: MouseScrollDelta::LineDelta(_, y),
                 ..
             } => match y.total_cmp(&0.0) {
-                Ordering::Greater => self.push_constants.render_scale *= 1.25,
+                Ordering::Greater => self.push_constants.render_scale /= 0.8,
                 Ordering::Less => self.push_constants.render_scale *= 0.8,
                 _ => return false,
             },
