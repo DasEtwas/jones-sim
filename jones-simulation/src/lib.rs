@@ -70,7 +70,7 @@ impl Simulation {
                 (side_length * (1.0 + margin) / cell_size) as usize,
                 (side_length * (1.0 + margin) / cell_size) as usize,
                 cell_size,
-                false,
+                true,
             ),
         }
     }

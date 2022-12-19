@@ -48,7 +48,7 @@ async fn main() {
     };
 
     let count = side_length * side_length;
-    let count = side_length * (side_length as f32 / (3.0f32.sqrt() * 0.5)).ceil() as usize;
+    let count = side_length * (side_length as f32 / (3.0f32.sqrt() * 0.5)).floor() as usize;
     //let count = side_length * side_length / 4;
 
     let vel = 100.0;
