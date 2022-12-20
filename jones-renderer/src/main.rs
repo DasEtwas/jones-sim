@@ -7,6 +7,7 @@ use jones_simulation::{MassDistribution, Simulation, Star};
 use nalgebra::Vector2;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use wgpu::SurfaceError;
@@ -61,15 +62,15 @@ async fn main() {
                     pos + Vector2::repeat(margin * side_length as f32),
                     //Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
                     //    * temp,
-                    if pos.y > side_length as f32 * 0.5 {
-                        Vector2::new(vel, -vel * 0.2)
-                    } else {
-                        Vector2::new(-vel, vel * 0.2)
-                    },
-                    //Vector2::new(
-                    //    pos.y - side_length as f32 * 0.5,
-                    //    -(pos.x - side_length as f32 * 0.5),
-                    //) * 100.0,
+                    //if pos.y > side_length as f32 * 0.5 {
+                    //    Vector2::new(vel, -vel * 0.2)
+                    //} else {
+                    //    Vector2::new(-vel, vel * 0.2)
+                    //},
+                    Vector2::new(
+                        pos.y - side_length as f32 * 0.5,
+                        -(pos.x - side_length as f32 * 0.5),
+                    ) * 100.0,
                     [0.7; 3],
                     1.0,
                 )
@@ -89,26 +90,37 @@ async fn main() {
 
     let mut state = State::new(&window, &simulation, stars.clone()).await;
 
-    std::thread::spawn(move || {
-        //std::thread::sleep(Duration::from_secs(5));
+    let tick_counter = Arc::new(AtomicU64::new(0));
 
-        let mut start = Instant::now();
-        let mut tick = 0;
-        loop {
-            // update simulation state
+    std::thread::spawn({
+        let tick_counter = tick_counter.clone();
+        let paused = state.paused.clone();
+        move || {
+            //std::thread::sleep(Duration::from_secs(5));
 
-            simulation.update();
-            tick += 1;
+            let mut start = Instant::now();
+            let mut tick = 0;
+            loop {
+                while paused.load(Ordering::Relaxed) {
+                    std::thread::yield_now();
+                }
 
-            let now = Instant::now();
-            let e = now.duration_since(start);
-            if e > Duration::from_millis(340) {
-                println!("Avg step time {:.3?}", e / tick);
-                start = now;
-                tick = 0;
+                // update simulation state
+
+                simulation.update();
+                tick += 1;
+                tick_counter.fetch_add(1, Ordering::Relaxed);
+
+                let now = Instant::now();
+                let e = now.duration_since(start);
+                if e > Duration::from_millis(340) {
+                    println!("Avg step time {:.3?}", e / tick);
+                    start = now;
+                    tick = 0;
+                }
+
+                stars.store(Arc::new(simulation.stars.clone()));
             }
-
-            stars.store(Arc::new(simulation.stars.clone()));
         }
     });
 
@@ -136,13 +148,23 @@ async fn main() {
         },
         Event::MainEventsCleared => window.request_redraw(),
         Event::RedrawRequested(window_id)
-            if window_id == window.id() && last.elapsed() > Duration::from_millis(30) =>
+            if window_id == window.id() && last.elapsed() > Duration::from_millis(15) =>
         {
             last = Instant::now();
 
-            let temp = state.update();
+            let tick = tick_counter.load(Ordering::Relaxed);
 
-            window.set_title(&format!("Temperature: {:.3}", temp));
+            let temp = state.update(tick);
+
+            if state.paused.load(Ordering::Relaxed) {
+                window.set_title(&format!(
+                    "Temperature: {:.3}, Rewind: {}, Paused ⏸ N<>M",
+                    temp,
+                    state.rewind.unwrap()
+                ));
+            } else {
+                window.set_title(&format!("Temperature: {:.3}, Tick: {}", temp, tick));
+            }
 
             match state.render() {
                 Ok(_) => {}

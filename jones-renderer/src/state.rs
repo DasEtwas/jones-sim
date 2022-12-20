@@ -3,7 +3,9 @@ use arc_swap::ArcSwap;
 use bytemuck::{Pod, Zeroable};
 use jones_simulation::{Simulation, Star};
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::mem::size_of;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
@@ -21,6 +23,8 @@ use winit::event::{
     ElementState, KeyboardInput, MouseButton, MouseScrollDelta, VirtualKeyCode, WindowEvent,
 };
 use winit::window::Window;
+
+pub const HISTORY_SIZE: usize = 100;
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -74,6 +78,9 @@ pub struct State {
 
     pub mb_held: [bool; 3],
     pub selection: Option<Selection>,
+    pub paused: Arc<AtomicBool>,
+    pub rewind: Option<u64>,
+    pub history: HashMap<u64, Vec<Star>>,
 }
 
 pub enum Selection {
@@ -249,6 +256,10 @@ impl State {
 
             mb_held: [false; 3],
             selection: None,
+
+            paused: Arc::new(AtomicBool::new(false)),
+            rewind: None,
+            history: HashMap::new(),
         }
     }
 
@@ -289,8 +300,41 @@ impl State {
                 VirtualKeyCode::D | VirtualKeyCode::Right => {
                     self.push_constants.pos[0] += STEP / self.push_constants.render_scale
                 }
-                VirtualKeyCode::PageUp => self.push_constants.render_scale *= 0.8,
-                VirtualKeyCode::PageDown => self.push_constants.render_scale /= 0.8,
+                VirtualKeyCode::PageUp => self.push_constants.render_scale /= 0.8,
+                VirtualKeyCode::PageDown => self.push_constants.render_scale *= 0.8,
+                VirtualKeyCode::Plus => {
+                    if !self.history.is_empty() {
+                        let previous = self
+                            .paused
+                            .fetch_xor(true, std::sync::atomic::Ordering::Relaxed);
+
+                        if !previous {
+                            // now it's paused. set rewind pointer.
+                            self.rewind = Some(*self.history.keys().max().unwrap());
+                        } else {
+                            // not paused anymore
+                            self.rewind = None;
+                        }
+                    }
+                }
+                VirtualKeyCode::M => {
+                    if let Some(rewind) = &mut self.rewind {
+                        if let Some(&more_recent_tick) =
+                            self.history.keys().filter(|t| *t > rewind).min()
+                        {
+                            *rewind = more_recent_tick;
+                        }
+                    }
+                }
+                VirtualKeyCode::N => {
+                    if let Some(rewind) = &mut self.rewind {
+                        if let Some(&less_recent_tick) =
+                            self.history.keys().filter(|t| *t < rewind).max()
+                        {
+                            *rewind = less_recent_tick;
+                        }
+                    }
+                }
                 VirtualKeyCode::Return => {
                     self.push_constants.render_scale = 1.0;
                     self.push_constants.pos = [0.0; 2];
@@ -322,8 +366,20 @@ impl State {
         true
     }
 
-    pub fn update(&mut self) -> f32 {
-        let stars = self.stars.load();
+    pub fn update(&mut self, tick: u64) -> f32 {
+        let stars_arc = self.stars.load();
+        let stars = if !self.paused.load(std::sync::atomic::Ordering::Relaxed) {
+            self.history.insert(tick, (**stars_arc).clone());
+
+            while self.history.len() > 1000 {
+                let min = *self.history.keys().min().unwrap();
+                self.history.remove(&min);
+            }
+
+            &*stars_arc
+        } else {
+            self.history.get(&self.rewind.unwrap()).unwrap()
+        };
 
         let mut avg_energy_kinetic = 0.0;
 
