@@ -26,7 +26,7 @@ async fn main() {
 
     let margin = 0.0;
 
-    let temp = 0.0;
+    let temp = 500.0;
     let side_length = 60;
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
@@ -72,7 +72,7 @@ async fn main() {
                 50.0,
             )
         }),
-        //.filter(|_| rng3.gen::<f32>() > 1e-1),
+        // .filter(|_| rng3.gen::<f32>() > 1e-1),
         side_length as f32,
         2.0,
         margin * 2.0,

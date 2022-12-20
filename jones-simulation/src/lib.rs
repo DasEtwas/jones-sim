@@ -114,8 +114,7 @@ impl Simulation {
         fn interact(dx: f32, dy: f32, _: &(), _: &()) -> Vector2<f32> {
             let dist_sq = dx * dx + dy * dy;
 
-            // we multiply by 0.5 because we touch every particle twice in interaction (boo!)
-            let f = lennard_jones_normalizing(dist_sq) * 0.5;
+            let f = lennard_jones_normalizing(dist_sq);
 
             Vector2::new(f * dx, f * dy)
         }
@@ -135,9 +134,9 @@ impl Simulation {
             Vector2::new(f * dx, f * dy)
         };
 
-        let grid = self.grid.populate(&particles);
+        let mut grid = self.grid.populate(&particles);
         self.grid
-            .interact(&particles, &mut self.forces_buf, &grid, interact);
+            .interact(&particles, &mut self.forces_buf, &mut grid, interact);
 
         //let damping = 0.0005;
         //let damping = 0.000;

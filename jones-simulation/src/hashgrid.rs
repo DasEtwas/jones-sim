@@ -1,5 +1,6 @@
 use smallvec::SmallVec;
 use std::ops::{AddAssign, Neg};
+use std::sync::atomic::{AtomicU8, Ordering};
 
 pub type ParticleId = usize;
 pub type GridHash = usize;
@@ -23,18 +24,11 @@ impl HashGrid {
     }
 
     #[inline]
-    pub fn get_hash_coordinate(&self, x: Coordinate, y: Coordinate, periodic: bool) -> GridHash {
-        if periodic {
-            self.get_hash(
-                (x / self.cell_size).rem_euclid(self.size_x as f32 - 1e-6) as usize,
-                (y / self.cell_size).rem_euclid(self.size_y as f32 - 1e-6) as usize,
-            )
-        } else {
-            self.get_hash(
-                ((x / self.cell_size).max(0.0) as GridHash).min(self.size_x - 1),
-                ((y / self.cell_size).max(0.0) as GridHash).min(self.size_y - 1),
-            )
-        }
+    pub fn get_hash_coordinate(&self, x: Coordinate, y: Coordinate) -> GridHash {
+        self.get_hash(
+            ((x / self.cell_size).max(0.0) as GridHash).min(self.size_x - 1),
+            ((y / self.cell_size).max(0.0) as GridHash).min(self.size_y - 1),
+        )
     }
 
     #[inline]
@@ -44,25 +38,25 @@ impl HashGrid {
 
     #[inline]
     pub fn pos_from(&self, hash: GridHash) -> (usize, usize) {
-        (hash / self.size_y, hash % self.size_x)
+        (hash / self.size_y, hash % self.size_y)
     }
 
     pub fn populate<P>(
         &mut self,
         particles: &[(Coordinate, Coordinate, &P)],
     ) -> Vec<Option<GridCell>> {
-        let mut grid: Vec<Option<GridCell>> = std::iter::repeat(None)
+        let mut grid: Vec<Option<GridCell>> = std::iter::from_fn(|| Some(None))
             .take(self.size_x * self.size_y)
             .collect();
 
         for (id, (x, y, _)) in particles.iter().enumerate() {
-            let hash = self.get_hash_coordinate(*x, *y, self.periodic);
+            let hash = self.get_hash_coordinate(*x, *y);
             if let Some(cell) = &mut grid[hash] {
                 cell.particles.push(id);
             } else {
                 let mut cell = GridCell {
                     particles: SmallVec::new(),
-                    //interacted_with: 0,
+                    interacted_with: AtomicU8::new(0),
                 };
                 cell.particles.push(id);
                 grid[hash] = Some(cell);
@@ -94,42 +88,46 @@ impl HashGrid {
             if self.periodic {
                 let size_x = self.size_x as f32 * self.cell_size;
                 let size_y = self.size_y as f32 * self.cell_size;
-
-                for neighbour_x in cell_x as i32 - 1..=(cell_x as i32 + 1) {
-                    for neighbour_y in cell_y as i32 - 1..=(cell_y as i32 + 1) {
+                // 770us
+                for dx in -1..=1 {
+                    for dy in -1..=1 {
                         let neighbour_hash = self.get_hash(
-                            (neighbour_x.rem_euclid(self.size_x as i32) as i32) as usize,
-                            (neighbour_y.rem_euclid(self.size_y as i32) as i32) as usize,
+                            (cell_x as i32 + dx).rem_euclid(self.size_x as i32) as usize,
+                            (cell_y as i32 + dy).rem_euclid(self.size_y as i32) as usize,
                         );
-                        if let Some(neighbour) = &grid[neighbour_hash] {
-                            for i in 0..cell.particles.len() {
-                                for j in 0..neighbour.particles.len() {
-                                    let cell_particle = cell.particles[i];
-                                    let neighbour_particle = neighbour.particles[j];
+                        if !cell.has_interacted_with(dx, dy) {
+                            if let Some(neighbour) = &grid[neighbour_hash] {
+                                if !neighbour.has_interacted_with(-dx, -dy) {
+                                    cell.mark_interacted(dx, dy);
+                                    neighbour.mark_interacted(-dx, -dy);
 
-                                    if cell_particle != neighbour_particle {
-                                        let a = &particles[cell_particle];
-                                        let b = &particles[neighbour_particle];
+                                    for cell_particle in &cell.particles {
+                                        for neighbour_particle in &neighbour.particles {
+                                            if cell_particle != neighbour_particle {
+                                                let a = &particles[*cell_particle];
+                                                let b = &particles[*neighbour_particle];
 
-                                        let dx = if b.0 - a.0 < -size_x * 0.5 {
-                                            b.0 - a.0 + size_x
-                                        } else if b.0 - a.0 > size_x * 0.5 {
-                                            b.0 - a.0 - size_x
-                                        } else {
-                                            b.0 - a.0
-                                        };
+                                                let dx = if cell_x == 0 && dx == -1 {
+                                                    b.0 - a.0 - size_x
+                                                } else if cell_x + 1 == self.size_x && dx == 1 {
+                                                    b.0 - a.0 + size_x
+                                                } else {
+                                                    b.0 - a.0
+                                                };
 
-                                        let dy = if b.1 - a.1 < -size_y * 0.5 {
-                                            b.1 - a.1 + size_y
-                                        } else if b.1 - a.1 > size_y * 0.5 {
-                                            b.1 - a.1 - size_y
-                                        } else {
-                                            b.1 - a.1
-                                        };
+                                                let dy = if cell_y == 0 && dy == -1 {
+                                                    b.1 - a.1 - size_y
+                                                } else if cell_y + 1 == self.size_y && dy == 1 {
+                                                    b.1 - a.1 + size_y
+                                                } else {
+                                                    b.1 - a.1
+                                                };
 
-                                        let force = interact(dx, dy, a.2, b.2);
-                                        forces_buffer[cell_particle] += force;
-                                        forces_buffer[neighbour_particle] += -force;
+                                                let force = interact(dx, dy, a.2, b.2);
+                                                forces_buffer[*cell_particle] += force;
+                                                forces_buffer[*neighbour_particle] += -force;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -140,19 +138,36 @@ impl HashGrid {
                 for neighbour_x in cell_x.saturating_sub(1)..(cell_x + 2).min(self.size_x) {
                     for neighbour_y in cell_y.saturating_sub(1)..(cell_y + 2).min(self.size_y) {
                         let neighbour_hash = self.get_hash(neighbour_x, neighbour_y);
-                        if let Some(neighbour) = &grid[neighbour_hash] {
-                            for i in 0..cell.particles.len() {
-                                for j in 0..neighbour.particles.len() {
-                                    let cell_particle = cell.particles[i];
-                                    let neighbour_particle = neighbour.particles[j];
+                        if !cell.has_interacted_with(
+                            neighbour_x as i32 - cell_x as i32,
+                            neighbour_y as i32 - cell_y as i32,
+                        ) {
+                            if let Some(neighbour) = &grid[neighbour_hash] {
+                                if !neighbour.has_interacted_with(
+                                    cell_x as i32 - neighbour_x as i32,
+                                    cell_y as i32 - neighbour_y as i32,
+                                ) {
+                                    cell.mark_interacted(
+                                        neighbour_x as i32 - cell_x as i32,
+                                        neighbour_y as i32 - cell_y as i32,
+                                    );
+                                    neighbour.mark_interacted(
+                                        cell_x as i32 - neighbour_x as i32,
+                                        cell_y as i32 - neighbour_y as i32,
+                                    );
 
-                                    if cell_particle != neighbour_particle {
-                                        let a = &particles[cell_particle];
-                                        let b = &particles[neighbour_particle];
+                                    for cell_particle in &cell.particles {
+                                        for neighbour_particle in &neighbour.particles {
+                                            if cell_particle != neighbour_particle {
+                                                let a = &particles[*cell_particle];
+                                                let b = &particles[*neighbour_particle];
 
-                                        let force = interact(b.0 - a.0, b.1 - a.1, a.2, b.2);
-                                        forces_buffer[cell_particle] += force;
-                                        forces_buffer[neighbour_particle] += -force;
+                                                let force =
+                                                    interact(b.0 - a.0, b.1 - a.1, a.2, b.2);
+                                                forces_buffer[*cell_particle] += force;
+                                                forces_buffer[*neighbour_particle] += -force;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -181,24 +196,24 @@ impl HashGrid {
     }
 }
 
-#[derive(Clone)]
 pub struct GridCell {
     particles: SmallVec<[ParticleId; 8]>,
-    //interacted_with: u8,
+    interacted_with: AtomicU8,
 }
 
-/*
 impl GridCell {
     pub fn has_interacted_with(&self, dx: i32, dy: i32) -> bool {
-        (self.interacted_with & (1 << Self::bit_index(dx, dy))) != 0
+        //(self.interacted_with.load(Ordering::Relaxed) & (1 << Self::bit_index(dx, dy))) != 0
+
+        false
     }
 
-    pub fn mark_interacted(&mut self, dx: i32, dy: i32) {
-        self.interacted_with |= 1 << Self::bit_index(dx, dy);
+    pub fn mark_interacted(&self, dx: i32, dy: i32) {
+        self.interacted_with
+            .fetch_or(1 << Self::bit_index(dx, dy), Ordering::Relaxed);
     }
 
     fn bit_index(dx: i32, dy: i32) -> usize {
         (dx + 1) as usize + (dy + 1) as usize * 3
     }
 }
-*/
