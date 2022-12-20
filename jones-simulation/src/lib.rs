@@ -61,17 +61,16 @@ pub struct Simulation {
 }
 
 /// Positive output means there is an attractive force
+/// The output force is premultiplied with `1/sqrt(dist-sq)`
 #[inline]
-fn lennard_jones(dist_sq: f32) -> f32 {
+fn lennard_jones_normalizing(dist_sq: f32) -> f32 {
     const DESIRED_RADIUS: f32 = 1.0;
     const SIGMA_FAC: f32 = 1.122462048309373; // 6th root of 2, the factor of the root relative to sigma
     const SIGMA: f32 = DESIRED_RADIUS / SIGMA_FAC;
     const SIGMA6: f32 = SIGMA * SIGMA * SIGMA * SIGMA * SIGMA * SIGMA; // precomputed sigma^6
     const E: f32 = 0.1;
 
-    // dist normally has exponent 13, but using 14 we normalise the diff vector :^)
-    // we multiply by 0.5 because we touch every particle twice in interaction (boo!)
-    (((24.0 * E * SIGMA6 * (dist_sq.powi(3) - 2.0 * SIGMA6)) / dist_sq.powi(6)) as f32).max(-1e7)
+    (((24.0 * E * SIGMA6 * (dist_sq.powi(3) - 2.0 * SIGMA6)) / dist_sq.powi(7)) as f32).max(-1e7)
 }
 
 impl Simulation {
@@ -87,7 +86,7 @@ impl Simulation {
         let mut lut = vec![];
         for i in 0..lut_size {
             let f = i as f32 * lut_fac;
-            lut.push(lennard_jones(f));
+            lut.push(lennard_jones_normalizing(f));
         }
 
         Self {
@@ -113,23 +112,25 @@ impl Simulation {
 
         #[inline]
         fn interact(dx: f32, dy: f32, _: &(), _: &()) -> Vector2<f32> {
-            let dist_sq = (dx * dx + dy * dy);
+            let dist_sq = dx * dx + dy * dy;
 
-            let f = lennard_jones(dist_sq) / dist_sq.sqrt() * 0.5;
+            // we multiply by 0.5 because we touch every particle twice in interaction (boo!)
+            let f = lennard_jones_normalizing(dist_sq) * 0.5;
 
             Vector2::new(f * dx, f * dy)
         }
 
         // slower lol
         let interact_lut = |dx: f32, dy: f32, _: &(), _: &()| -> Vector2<f32> {
-            let dist_sq = (dx * dx + dy * dy);
+            let dist_sq = dx * dx + dy * dy;
 
             let lut = *self
                 .jones_lut
                 .get((dist_sq * self.jones_lut_fac) as usize)
                 .unwrap_or(&0.0);
 
-            let f = lut / dist_sq.sqrt() * 0.5;
+            // we multiply by 0.5 because we touch every particle twice in interaction (boo!)
+            let f = lut;
 
             Vector2::new(f * dx, f * dy)
         };

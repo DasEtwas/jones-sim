@@ -17,7 +17,9 @@ use wgpu::{
     VertexState, VertexStepMode,
 };
 use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, KeyboardInput, MouseScrollDelta, VirtualKeyCode, WindowEvent};
+use winit::event::{
+    ElementState, KeyboardInput, MouseButton, MouseScrollDelta, VirtualKeyCode, WindowEvent,
+};
 use winit::window::Window;
 
 #[repr(C)]
@@ -69,6 +71,13 @@ pub struct State {
     pub push_constants: PushConstants,
     pub instances: Vec<RenderInstance>,
     pub stars: Arc<ArcSwap<Vec<Star>>>,
+
+    pub mb_held: [bool; 3],
+    pub selection: Option<Selection>,
+}
+
+pub enum Selection {
+    SingleAtom(usize),
 }
 
 impl State {
@@ -237,6 +246,9 @@ impl State {
             push_constants,
             instances,
             stars,
+
+            mb_held: [false; 3],
+            selection: None,
         }
     }
 
@@ -293,6 +305,18 @@ impl State {
                 Ordering::Less => self.push_constants.render_scale *= 0.8,
                 _ => return false,
             },
+            WindowEvent::MouseInput { button, state, .. } => {
+                let held = match button {
+                    MouseButton::Left => &mut self.mb_held[0],
+                    MouseButton::Right => &mut self.mb_held[1],
+                    MouseButton::Middle | MouseButton::Other(_) => &mut self.mb_held[2],
+                };
+
+                *held = match state {
+                    ElementState::Pressed => true,
+                    ElementState::Released => false,
+                };
+            }
             _ => return false,
         }
         true
