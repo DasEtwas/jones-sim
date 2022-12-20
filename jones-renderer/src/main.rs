@@ -24,10 +24,8 @@ async fn main() {
     let mut rng2 = StdRng::from_entropy();
     let mut rng3 = StdRng::from_entropy();
 
-    let margin = 0.0;
-
     let temp = 0.0;
-    let side_length = 60;
+    let side_length = 100;
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
         Vector2::new(
@@ -51,32 +49,40 @@ async fn main() {
     let count = side_length * (side_length as f32 / (3.0f32.sqrt() * 0.5)).floor() as usize;
     //let count = side_length * side_length / 4;
 
-    let vel = 100.0;
+    let vel = 300.0;
+
+    let margin = 0.1;
 
     let mut simulation = Simulation::new(
-        (0..count).map(|i| {
-            let pos = hexagonal_lattice(i, &mut rng);
-            Star::new(
-                pos + Vector2::repeat(margin * side_length as f32),
-                Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0) * temp,
-                //if pos.y > side_length as f32 * 0.5 {
-                //    Vector2::new(vel, -vel * 0.2)
-                //} else {
-                //    Vector2::new(-vel, vel * 0.2)
-                //},
-                //Vector2::new(
-                //    pos.y - side_length as f32 * 0.5,
-                //    -(pos.x - side_length as f32 * 0.5),
-                //) * 10.0,
-                [0.7; 3],
-                50.0,
-            )
-        }),
-        // .filter(|_| rng3.gen::<f32>() > 1e-1),
+        (0..count)
+            .map(|i| {
+                let pos = hexagonal_lattice(i, &mut rng);
+                Star::new(
+                    pos + Vector2::repeat(margin * side_length as f32),
+                    //Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
+                    //    * temp,
+                    if pos.y > side_length as f32 * 0.5 {
+                        Vector2::new(vel, -vel * 0.2)
+                    } else {
+                        Vector2::new(-vel, vel * 0.2)
+                    },
+                    //Vector2::new(
+                    //    pos.y - side_length as f32 * 0.5,
+                    //    -(pos.x - side_length as f32 * 0.5),
+                    //) * 100.0,
+                    [0.7; 3],
+                    1.0,
+                )
+            })
+            .filter(|_| rng3.gen::<f32>() > 1e-2)
+            .filter(|s| {
+                (s.pos() - Vector2::repeat(side_length as f32 * 0.5)).norm()
+                    > side_length as f32 * 0.1
+            }),
         side_length as f32,
         2.0,
         margin * 2.0,
-        true,
+        false,
     );
 
     let stars = Arc::new(ArcSwap::from_pointee(simulation.stars.clone()));

@@ -146,7 +146,7 @@ impl Simulation {
             .interact(&particles, &mut self.forces_buf, &mut grid, interact);
 
         //let damping = 0.0005;
-        let damping = 0.000;
+        let damping = 0.00002;
         //let damping = 0.0001;
 
         self.stars
