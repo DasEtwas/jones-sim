@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use smallvec::SmallVec;
 use std::ops::{AddAssign, Neg};
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -76,24 +77,32 @@ impl HashGrid {
         assert_eq!(particles.len(), forces_buffer.len());
         let mut max = 0;
 
-        for (cell_hash, cell) in grid
+        let size_x = self.size_x;
+        let size_y = self.size_y;
+        let cell_size = self.cell_size;
+
+        let size_x_f = size_x as f32 * cell_size;
+        let size_y_f = size_y as f32 * cell_size;
+
+        let periodic = self.periodic;
+
+        let non_empty_cells = grid
             .iter()
             .enumerate()
             .filter_map(|(i, x)| x.as_ref().map(|x| (i, x)))
-        {
+            .collect::<Vec<_>>();
+
+        for (cell_hash, cell) in non_empty_cells {
             let (cell_x, cell_y) = self.pos_from(cell_hash);
 
             max = max.max(cell.particles.len());
 
-            if self.periodic {
-                let size_x = self.size_x as f32 * self.cell_size;
-                let size_y = self.size_y as f32 * self.cell_size;
-                // 770us
+            if periodic {
                 for dx in -1..=1 {
                     for dy in -1..=1 {
                         let neighbour_hash = self.get_hash(
-                            (cell_x as i32 + dx).rem_euclid(self.size_x as i32) as usize,
-                            (cell_y as i32 + dy).rem_euclid(self.size_y as i32) as usize,
+                            (cell_x as i32 + dx).rem_euclid(size_x as i32) as usize,
+                            (cell_y as i32 + dy).rem_euclid(size_y as i32) as usize,
                         );
                         if !cell.has_interacted_with(dx, dy) {
                             if let Some(neighbour) = &grid[neighbour_hash] {
@@ -108,17 +117,17 @@ impl HashGrid {
                                                 let b = &particles[*neighbour_particle];
 
                                                 let dx = if cell_x == 0 && dx == -1 {
-                                                    b.0 - a.0 - size_x
+                                                    b.0 - a.0 - size_x_f
                                                 } else if cell_x + 1 == self.size_x && dx == 1 {
-                                                    b.0 - a.0 + size_x
+                                                    b.0 - a.0 + size_x_f
                                                 } else {
                                                     b.0 - a.0
                                                 };
 
                                                 let dy = if cell_y == 0 && dy == -1 {
-                                                    b.1 - a.1 - size_y
+                                                    b.1 - a.1 - size_y_f
                                                 } else if cell_y + 1 == self.size_y && dy == 1 {
-                                                    b.1 - a.1 + size_y
+                                                    b.1 - a.1 + size_y_f
                                                 } else {
                                                     b.1 - a.1
                                                 };
@@ -135,8 +144,8 @@ impl HashGrid {
                     }
                 }
             } else {
-                for neighbour_x in cell_x.saturating_sub(1)..(cell_x + 2).min(self.size_x) {
-                    for neighbour_y in cell_y.saturating_sub(1)..(cell_y + 2).min(self.size_y) {
+                for neighbour_x in cell_x.saturating_sub(1)..(cell_x + 2).min(size_x) {
+                    for neighbour_y in cell_y.saturating_sub(1)..(cell_y + 2).min(size_y) {
                         let neighbour_hash = self.get_hash(neighbour_x, neighbour_y);
                         if !cell.has_interacted_with(
                             neighbour_x as i32 - cell_x as i32,

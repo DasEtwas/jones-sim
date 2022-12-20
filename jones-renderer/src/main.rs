@@ -26,7 +26,7 @@ async fn main() {
 
     let margin = 0.0;
 
-    let temp = 500.0;
+    let temp = 0.0;
     let side_length = 60;
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
@@ -76,6 +76,7 @@ async fn main() {
         side_length as f32,
         2.0,
         margin * 2.0,
+        true,
     );
 
     let stars = Arc::new(ArcSwap::from_pointee(simulation.stars.clone()));

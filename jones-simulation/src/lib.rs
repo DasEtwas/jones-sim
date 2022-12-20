@@ -68,13 +68,13 @@ fn lennard_jones_normalizing(dist_sq: f32) -> f32 {
     const SIGMA_FAC: f32 = 1.122462048309373; // 6th root of 2, the factor of the root relative to sigma
     const SIGMA: f32 = DESIRED_RADIUS / SIGMA_FAC;
     const SIGMA6: f32 = SIGMA * SIGMA * SIGMA * SIGMA * SIGMA * SIGMA; // precomputed sigma^6
-    const E: f32 = 0.1;
+    const E: f32 = 0.25;
 
     (((24.0 * E * SIGMA6 * (dist_sq.powi(3) - 2.0 * SIGMA6)) / dist_sq.powi(7)) as f32).max(-1e7)
 }
 
 impl Simulation {
-    pub fn new<I>(stars: I, side_length: f32, cell_size: f32, margin: f32) -> Self
+    pub fn new<I>(stars: I, side_length: f32, cell_size: f32, margin: f32, periodic: bool) -> Self
     where
         I: IntoIterator<Item = Star>,
     {
@@ -89,6 +89,13 @@ impl Simulation {
             lut.push(lennard_jones_normalizing(f));
         }
 
+        if periodic {
+            assert_eq!(
+                margin, 0.0,
+                "A periodic field may not have a grid size margin"
+            );
+        }
+
         Self {
             forces_buf: vec![Vector2::<f32>::zeros(); stars.len()],
             stars,
@@ -96,7 +103,7 @@ impl Simulation {
                 (side_length * (1.0 + margin) / cell_size) as usize,
                 (side_length * (1.0 + margin) / cell_size) as usize,
                 cell_size,
-                true,
+                periodic,
             ),
             jones_lut_fac: lut_fac.recip(),
             jones_lut: lut,
@@ -139,8 +146,8 @@ impl Simulation {
             .interact(&particles, &mut self.forces_buf, &mut grid, interact);
 
         //let damping = 0.0005;
-        //let damping = 0.000;
-        let damping = 0.0001;
+        let damping = 0.000;
+        //let damping = 0.0001;
 
         self.stars
             .iter_mut()
