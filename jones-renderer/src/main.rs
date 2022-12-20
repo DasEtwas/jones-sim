@@ -7,7 +7,7 @@ use jones_simulation::{MassDistribution, Simulation, Star};
 use nalgebra::Vector2;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use wgpu::SurfaceError;
@@ -20,7 +20,6 @@ async fn main() {
     let event_loop = EventLoop::new();
     let window = Window::new(&event_loop).expect("failed to create window");
 
-    let mass_distribution = MassDistribution::new(35.0, 200.0);
     let mut rng = StdRng::from_entropy();
     let mut rng2 = StdRng::from_entropy();
     let mut rng3 = StdRng::from_entropy();
@@ -30,7 +29,7 @@ async fn main() {
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
         Vector2::new(
-            ((i % side_length) as f32 + if (i / side_length) % 2 == 0 { 0.5 } else { 0.0 }),
+            (i % side_length) as f32 + if (i / side_length) % 2 == 0 { 0.5 } else { 0.0 },
             (i / side_length) as f32 * 3.0f32.sqrt() * 0.5,
         )
     };
@@ -46,9 +45,9 @@ async fn main() {
         )
     };
 
-    let count = side_length * side_length;
-    let count = side_length * (side_length as f32 / (3.0f32.sqrt() * 0.5)).floor() as usize;
-    //let count = side_length * side_length / 4;
+    let count = side_length * side_length; // rect
+    let count = side_length * (side_length as f32 / (3.0f32.sqrt() * 0.5)).floor() as usize; // hex
+                                                                                             //let count = side_length * side_length / 4; // random
 
     let vel = 300.0;
 
@@ -62,15 +61,15 @@ async fn main() {
                     pos + Vector2::repeat(margin * side_length as f32),
                     //Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
                     //    * temp,
-                    //if pos.y > side_length as f32 * 0.5 {
-                    //    Vector2::new(vel, -vel * 0.2)
-                    //} else {
-                    //    Vector2::new(-vel, vel * 0.2)
-                    //},
-                    Vector2::new(
-                        pos.y - side_length as f32 * 0.5,
-                        -(pos.x - side_length as f32 * 0.5),
-                    ) * 100.0,
+                    if pos.y > side_length as f32 * 0.5 {
+                        Vector2::new(vel, -vel * 0.2)
+                    } else {
+                        Vector2::new(-vel, vel * 0.2)
+                    },
+                    //Vector2::new(
+                    //    pos.y - side_length as f32 * 0.5,
+                    //    -(pos.x - side_length as f32 * 0.5),
+                    //) * 10.0,
                     [0.7; 3],
                     1.0,
                 )

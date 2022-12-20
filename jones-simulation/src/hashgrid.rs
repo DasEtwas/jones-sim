@@ -1,4 +1,3 @@
-use rayon::prelude::*;
 use smallvec::SmallVec;
 use std::ops::{AddAssign, Neg};
 use std::sync::atomic::{AtomicU8, Ordering};
