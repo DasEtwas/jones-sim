@@ -53,6 +53,8 @@ async fn main() {
 
     let margin = 0.1;
 
+    // https://www.mpie.de/4249939/grain-boundary-phase-transformation-liebscher
+
     let mut simulation = Simulation::new(
         (0..count)
             .map(|i| {
@@ -113,7 +115,7 @@ async fn main() {
                 let now = Instant::now();
                 let e = now.duration_since(start);
                 if e > Duration::from_millis(340) {
-                    println!("Avg step time {:.3?}", e / tick);
+                    println!("Avg step time {:.3?}, {:.0} Hz", e / tick, tick as f32 / 0.34);
                     start = now;
                     tick = 0;
                 }
