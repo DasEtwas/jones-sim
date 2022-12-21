@@ -99,10 +99,14 @@ impl HashGrid {
             if periodic {
                 for dx in -1..=1 {
                     for dy in -1..=1 {
-                        let neighbour_hash = self.get_hash(
-                            (cell_x as i32 + dx).rem_euclid(size_x as i32) as usize,
-                            (cell_y as i32 + dy).rem_euclid(size_y as i32) as usize,
-                        );
+                        let neighbour_hash = if dx == 0 && dy == 0 {
+                            cell_hash
+                        } else {
+                            self.get_hash(
+                                (cell_x as i32 + dx).rem_euclid(size_x as i32) as usize,
+                                (cell_y as i32 + dy).rem_euclid(size_y as i32) as usize,
+                            )
+                        };
                         if !cell.has_interacted_with(dx, dy) {
                             if let Some(neighbour) = &grid[neighbour_hash] {
                                 if !neighbour.has_interacted_with(-dx, -dy) {
