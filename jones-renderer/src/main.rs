@@ -27,11 +27,12 @@ async fn main() {
     let temp = 1600.0;
     let side_length = 250;
 
-    let hexagonal_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
+    let hexagonal_lattice = |i: usize, rng: &mut StdRng, distance_factor: f32| -> Vector2<f32> {
+        let n = (side_length as f32 / distance_factor).floor() as usize;
         Vector2::new(
-            (i % side_length) as f32 + if (i / side_length) % 2 == 0 { 0.5 } else { 0.0 },
-            (i / side_length) as f32 * 3.0f32.sqrt() * 0.5,
-        )
+            (i % n) as f32 + if (i / n) % 2 == 0 { 0.5 } else { 0.0 },
+            (i / n) as f32 * 3.0f32.sqrt() * 0.5,
+        ) * distance_factor
     };
 
     let rectangular_lattice = |i: usize, rng: &mut StdRng| -> Vector2<f32> {
@@ -45,9 +46,14 @@ async fn main() {
         )
     };
 
+    // factor for inter atom distance
+    let distance_factor = 1.2f32;
+
     let count = side_length * side_length; // rect
-    let count = side_length * (side_length as f32 / (3.0f32.sqrt() * 0.5)).floor() as usize; // hex
-                                                                                             //let count = side_length * side_length / 4; // random
+    let count = (side_length as f32 / distance_factor).floor() as usize
+        * (side_length as f32 / (3.0f32.sqrt() * 0.5) / distance_factor).floor() as usize; // hex
+
+    //let count = side_length * side_length / 4; // random
 
     let vel = 300.0;
 
@@ -58,7 +64,7 @@ async fn main() {
     let mut simulation = Simulation::new(
         (0..count)
             .map(|i| {
-                let pos = hexagonal_lattice(i, &mut rng);
+                let pos = hexagonal_lattice(i, &mut rng, distance_factor);
                 Atom::new(
                     pos + Vector2::repeat(margin * side_length as f32),
                     Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)

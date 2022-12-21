@@ -53,7 +53,7 @@ fn lennard_jones_normalizing(dist_sq: f32) -> f32 {
     const SIGMA_FAC: f32 = 1.122462048309373; // 6th root of 2, the factor of the root relative to sigma
     const SIGMA: f32 = DESIRED_RADIUS / SIGMA_FAC;
     const SIGMA6: f32 = SIGMA * SIGMA * SIGMA * SIGMA * SIGMA * SIGMA; // precomputed sigma^6
-    const E: f32 = 0.25;
+    const E: f32 = 0.25 * 3.0;
 
     (((24.0 * E * SIGMA6 * (dist_sq.powi(3) - 2.0 * SIGMA6)) / dist_sq.powi(7)) as f32).max(-1e7)
 }
@@ -131,7 +131,7 @@ impl Simulation {
             .interact(&particles, &mut self.forces_buf, &mut grid, interact);
 
         //let damping = 0.0005;
-        let damping = 0.00004;
+        let damping = 0.0001;
         //let damping = 0.0001;
 
         self.stars
