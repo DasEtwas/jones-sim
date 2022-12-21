@@ -1,6 +1,6 @@
 use smallvec::SmallVec;
 use std::ops::{AddAssign, Neg};
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU16, Ordering};
 
 pub type ParticleId = usize;
 pub type GridHash = usize;
@@ -56,7 +56,7 @@ impl HashGrid {
             } else {
                 let mut cell = GridCell {
                     particles: SmallVec::new(),
-                    interacted_with: AtomicU8::new(0),
+                    interacted_with: AtomicU16::new(0),
                 };
                 cell.particles.push(id);
                 grid[hash] = Some(cell);
@@ -110,9 +110,10 @@ impl HashGrid {
                                     neighbour.mark_interacted(-dx, -dy);
 
                                     for cell_particle in &cell.particles {
+                                        let a = &particles[*cell_particle];
+
                                         for neighbour_particle in &neighbour.particles {
                                             if cell_particle != neighbour_particle {
-                                                let a = &particles[*cell_particle];
                                                 let b = &particles[*neighbour_particle];
 
                                                 let dx = if cell_x == 0 && dx == -1 {
@@ -165,9 +166,10 @@ impl HashGrid {
                                     );
 
                                     for cell_particle in &cell.particles {
+                                        let a = &particles[*cell_particle];
+
                                         for neighbour_particle in &neighbour.particles {
                                             if cell_particle != neighbour_particle {
-                                                let a = &particles[*cell_particle];
                                                 let b = &particles[*neighbour_particle];
 
                                                 let force =
@@ -206,19 +208,17 @@ impl HashGrid {
 
 pub struct GridCell {
     particles: SmallVec<[ParticleId; 8]>,
-    interacted_with: AtomicU8,
+    interacted_with: AtomicU16,
 }
 
 impl GridCell {
     pub fn has_interacted_with(&self, dx: i32, dy: i32) -> bool {
-        //(self.interacted_with.load(Ordering::Relaxed) & (1 << Self::bit_index(dx, dy))) != 0
-
-        false
+        (self.interacted_with.load(Ordering::Relaxed) & (1u16 << Self::bit_index(dx, dy))) != 0
     }
 
     pub fn mark_interacted(&self, dx: i32, dy: i32) {
         self.interacted_with
-            .fetch_or(1 << Self::bit_index(dx, dy), Ordering::Relaxed);
+            .fetch_or(1u16 << Self::bit_index(dx, dy), Ordering::Relaxed);
     }
 
     fn bit_index(dx: i32, dy: i32) -> usize {

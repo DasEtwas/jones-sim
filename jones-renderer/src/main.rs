@@ -78,7 +78,7 @@ async fn main() {
             })
             .filter(|_| rng3.gen::<f32>() > 1e-2)
             .filter(|s| {
-                (s.pos() - Vector2::repeat(side_length as f32 * 0.5)).norm()
+                (s.pos() - Vector2::repeat(side_length as f32 * (1.0 + 2.0 * margin) * 0.5)).norm()
                     > side_length as f32 * 0.1
             }),
         side_length as f32,
@@ -115,7 +115,11 @@ async fn main() {
                 let now = Instant::now();
                 let e = now.duration_since(start);
                 if e > Duration::from_millis(340) {
-                    println!("Avg step time {:.3?}, {:.0} Hz", e / tick, tick as f32 / 0.34);
+                    println!(
+                        "Avg step time {:.3?}, {:.0} Hz",
+                        e / tick,
+                        tick as f32 / 0.34
+                    );
                     start = now;
                     tick = 0;
                 }
