@@ -25,7 +25,7 @@ async fn main() {
     let mut rng3 = StdRng::from_entropy();
 
     let temp = 1600.0;
-    let side_length = 250;
+    let side_length = 100;
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng, distance_factor: f32| -> Vector2<f32> {
         let n = (side_length as f32 / distance_factor).floor() as usize;
@@ -47,7 +47,7 @@ async fn main() {
     };
 
     // factor for inter atom distance
-    let distance_factor = 1.2f32;
+    let distance_factor = 1.0f32;
 
     let count = side_length * side_length; // rect
     let count = (side_length as f32 / distance_factor).floor() as usize

@@ -114,29 +114,29 @@ impl HashGrid {
                                     neighbour.mark_interacted(-dx, -dy);
 
                                     for cell_particle in &cell.particles {
-                                        let a = &particles[*cell_particle];
+                                        let (ax, ay, ap) = &particles[*cell_particle];
 
                                         for neighbour_particle in &neighbour.particles {
                                             if cell_particle != neighbour_particle {
-                                                let b = &particles[*neighbour_particle];
+                                                let (bx, by, bp) = &particles[*neighbour_particle];
 
                                                 let dx = if cell_x == 0 && dx == -1 {
-                                                    b.0 - a.0 - size_x_f
+                                                    bx - ax - size_x_f
                                                 } else if cell_x + 1 == self.size_x && dx == 1 {
-                                                    b.0 - a.0 + size_x_f
+                                                    bx - ax + size_x_f
                                                 } else {
-                                                    b.0 - a.0
+                                                    bx - ax
                                                 };
 
                                                 let dy = if cell_y == 0 && dy == -1 {
-                                                    b.1 - a.1 - size_y_f
+                                                    by - ay - size_y_f
                                                 } else if cell_y + 1 == self.size_y && dy == 1 {
-                                                    b.1 - a.1 + size_y_f
+                                                    by - ay + size_y_f
                                                 } else {
-                                                    b.1 - a.1
+                                                    by - ay
                                                 };
 
-                                                let force = interact(dx, dy, a.2, b.2);
+                                                let force = interact(dx, dy, ap, bp);
                                                 forces_buffer[*cell_particle] += force;
                                                 forces_buffer[*neighbour_particle] += -force;
                                             }
@@ -170,14 +170,13 @@ impl HashGrid {
                                     );
 
                                     for cell_particle in &cell.particles {
-                                        let a = &particles[*cell_particle];
+                                        let (ax, ay, ap) = &particles[*cell_particle];
 
                                         for neighbour_particle in &neighbour.particles {
                                             if cell_particle != neighbour_particle {
-                                                let b = &particles[*neighbour_particle];
+                                                let (bx, by, bp) = &particles[*neighbour_particle];
 
-                                                let force =
-                                                    interact(b.0 - a.0, b.1 - a.1, a.2, b.2);
+                                                let force = interact(bx - ax, by - ay, ap, bp);
                                                 forces_buffer[*cell_particle] += force;
                                                 forces_buffer[*neighbour_particle] += -force;
                                             }
@@ -216,15 +215,18 @@ pub struct GridCell {
 }
 
 impl GridCell {
+    #[inline]
     pub fn has_interacted_with(&self, dx: i32, dy: i32) -> bool {
         (self.interacted_with.load(Ordering::Relaxed) & (1u16 << Self::bit_index(dx, dy))) != 0
     }
 
+    #[inline]
     pub fn mark_interacted(&self, dx: i32, dy: i32) {
         self.interacted_with
             .fetch_or(1u16 << Self::bit_index(dx, dy), Ordering::Relaxed);
     }
 
+    #[inline]
     fn bit_index(dx: i32, dy: i32) -> usize {
         (dx + 1) as usize + (dy + 1) as usize * 3
     }
