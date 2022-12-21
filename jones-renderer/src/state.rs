@@ -1,7 +1,7 @@
 use crate::colormap;
 use arc_swap::ArcSwap;
 use bytemuck::{Pod, Zeroable};
-use jones_simulation::{Simulation, Star};
+use jones_simulation::{Atom, Simulation};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::mem::size_of;
@@ -74,13 +74,13 @@ pub struct State {
 
     pub push_constants: PushConstants,
     pub instances: Vec<RenderInstance>,
-    pub stars: Arc<ArcSwap<Vec<Star>>>,
+    pub stars: Arc<ArcSwap<Vec<Atom>>>,
 
     pub mb_held: [bool; 3],
     pub selection: Option<Selection>,
     pub paused: Arc<AtomicBool>,
     pub rewind: Option<u64>,
-    pub history: HashMap<u64, Vec<Star>>,
+    pub history: HashMap<u64, Vec<Atom>>,
 }
 
 pub enum Selection {
@@ -93,7 +93,7 @@ impl State {
     pub async fn new(
         window: &Window,
         simulation: &Simulation,
-        stars: Arc<ArcSwap<Vec<Star>>>,
+        stars: Arc<ArcSwap<Vec<Atom>>>,
     ) -> Self {
         let size = window.inner_size();
 
@@ -212,9 +212,9 @@ impl State {
             .stars
             .iter()
             .map(|star| RenderInstance {
-                position: [star.pos().x, star.pos().y],
-                color: star.color(),
-                radius: 1.0,
+                position: [star.pos.x, star.pos.y],
+                color: star.color,
+                radius: star.radius,
             })
             .collect();
         let instance_buffer = device.create_buffer_init(&BufferInitDescriptor {
@@ -389,11 +389,10 @@ impl State {
             .enumerate()
             .for_each(|(i, instance)| {
                 let s = &stars[i];
-                instance.position = [s.mass_point.position.x, s.mass_point.position.y];
+                instance.position = [s.pos.x, s.pos.y];
                 let force_scale = 0.06;
                 avg_energy_kinetic += s.vel.norm_squared();
 
-                //instance.color = [s.force.x * force_scale + 0.5, s.force.y * force_scale + 0.5, 1.0];
                 instance.color = colormap::map(force_scale * s.force.norm(), &colormap::TURBO);
             });
 

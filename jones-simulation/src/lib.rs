@@ -5,42 +5,27 @@ use serde::{Deserialize, Serialize};
 pub mod hashgrid;
 
 #[derive(Copy, Clone, Debug)]
-pub struct Star {
-    pub mass_point: MassData,
+pub struct Atom {
+    pub inv_mass: f32,
+    pub radius: f32,
+    pub pos: Vector2<f32>,
     pub vel: Vector2<f32>,
     pub force: Vector2<f32>,
     pub color: [f32; 3],
 }
 
-impl Star {
+impl Atom {
     pub const DENSITY: f32 = 250.0;
 
     pub fn new(pos: Vector2<f32>, vel: Vector2<f32>, color: [f32; 3], mass: f32) -> Self {
         Self {
-            mass_point: MassData {
-                position: pos,
-                mass,
-            },
+            pos,
+            inv_mass: mass.recip(),
+            radius: 1.0,
             force: Vector2::zeros(),
             vel,
             color,
         }
-    }
-
-    pub fn radius(&self) -> f32 {
-        (0.75 * self.mass_point.mass / (Self::DENSITY * std::f32::consts::PI)).cbrt()
-    }
-
-    pub fn color(&self) -> [f32; 3] {
-        self.color
-    }
-
-    pub fn mass(&self) -> f32 {
-        self.mass_point.mass
-    }
-
-    pub fn pos(&self) -> &Vector2<f32> {
-        &self.mass_point.position
     }
 }
 
@@ -52,7 +37,7 @@ pub struct MassData {
 }
 
 pub struct Simulation {
-    pub stars: Vec<Star>,
+    pub stars: Vec<Atom>,
     pub forces_buf: Vec<Vector2<f32>>,
     pub grid: HashGrid,
 
@@ -68,7 +53,7 @@ fn lennard_jones_normalizing(dist_sq: f32) -> f32 {
     const SIGMA_FAC: f32 = 1.122462048309373; // 6th root of 2, the factor of the root relative to sigma
     const SIGMA: f32 = DESIRED_RADIUS / SIGMA_FAC;
     const SIGMA6: f32 = SIGMA * SIGMA * SIGMA * SIGMA * SIGMA * SIGMA; // precomputed sigma^6
-    const E: f32 = 0.5;
+    const E: f32 = 0.25;
 
     (((24.0 * E * SIGMA6 * (dist_sq.powi(3) - 2.0 * SIGMA6)) / dist_sq.powi(7)) as f32).max(-1e7)
 }
@@ -76,9 +61,9 @@ fn lennard_jones_normalizing(dist_sq: f32) -> f32 {
 impl Simulation {
     pub fn new<I>(stars: I, side_length: f32, cell_size: f32, margin: f32, periodic: bool) -> Self
     where
-        I: IntoIterator<Item = Star>,
+        I: IntoIterator<Item = Atom>,
     {
-        let stars: Vec<Star> = stars.into_iter().collect();
+        let stars: Vec<Atom> = stars.into_iter().collect();
 
         let lut_size = 256;
         let lut_max_function_value = 16.0;
@@ -114,7 +99,7 @@ impl Simulation {
         let particles = self
             .stars
             .iter()
-            .map(|star| (star.mass_point.position.x, star.mass_point.position.y, &()))
+            .map(|star| (star.pos.x, star.pos.y, &()))
             .collect::<Vec<_>>();
 
         #[inline]
@@ -146,7 +131,7 @@ impl Simulation {
             .interact(&particles, &mut self.forces_buf, &mut grid, interact);
 
         //let damping = 0.0005;
-        let damping = 0.00002;
+        let damping = 0.00004;
         //let damping = 0.0001;
 
         self.stars
@@ -154,19 +139,17 @@ impl Simulation {
             .zip(&mut self.forces_buf)
             .for_each(|(star, force)| {
                 star.force = force.cast::<f32>();
-                star.vel += star.force;
+                star.vel += star.force * star.inv_mass;
                 star.vel *= 1.0 - damping;
-                star.mass_point.position += 1e-6 * star.vel;
+                star.pos += 1e-6 * star.vel;
 
                 if self.grid.periodic() {
-                    star.mass_point.position.x = star
-                        .mass_point
-                        .position
+                    star.pos.x = star
+                        .pos
                         .x
                         .rem_euclid(self.grid.size_x() as f32 * self.grid.cell_size());
-                    star.mass_point.position.y = star
-                        .mass_point
-                        .position
+                    star.pos.y = star
+                        .pos
                         .y
                         .rem_euclid(self.grid.size_y() as f32 * self.grid.cell_size());
                 }

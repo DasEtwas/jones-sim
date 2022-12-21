@@ -1,3 +1,4 @@
+// https://gist.github.com/mikhailov-work/6a308c20e494d9e0ccc29036b28faa7a
 pub const TURBO: [[f32; 3]; 256] = [
     [0.18995, 0.07176, 0.23217],
     [0.19483, 0.08339, 0.26149],
