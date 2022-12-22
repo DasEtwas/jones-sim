@@ -11,6 +11,7 @@ pub struct Atom {
     pub pos: Vector2<f32>,
     pub vel: Vector2<f32>,
     pub force: Vector2<f32>,
+    pub h: f32,
     pub color: [f32; 3],
 }
 
@@ -23,6 +24,7 @@ impl Atom {
             inv_mass: mass.recip(),
             radius: 1.0,
             force: Vector2::zeros(),
+            h: 0.0,
             vel,
             color,
         }
@@ -37,7 +39,7 @@ pub struct MassData {
 }
 
 pub struct Simulation {
-    pub stars: Vec<Atom>,
+    pub atoms: Vec<Atom>,
     pub forces_buf: Vec<Vector2<f32>>,
     pub grid: HashGrid,
 
@@ -46,7 +48,7 @@ pub struct Simulation {
 }
 
 /// Positive output means there is an attractive force
-/// The output force is premultiplied with `1/sqrt(dist-sq)`
+/// The output force is premultiplied with `1/sqrt(dist_sq)`
 #[inline]
 fn lennard_jones_normalizing(dist_sq: f32) -> f32 {
     const DESIRED_RADIUS: f32 = 1.0;
@@ -83,7 +85,7 @@ impl Simulation {
 
         Self {
             forces_buf: vec![Vector2::<f32>::zeros(); stars.len()],
-            stars,
+            atoms: stars,
             grid: HashGrid::new(
                 (side_length * (1.0 + margin) / cell_size) as usize,
                 (side_length * (1.0 + margin) / cell_size) as usize,
@@ -97,7 +99,7 @@ impl Simulation {
 
     pub fn update(&mut self) {
         let particles = self
-            .stars
+            .atoms
             .iter()
             .map(|star| (star.pos.x, star.pos.y, &()))
             .collect::<Vec<_>>();
@@ -131,17 +133,17 @@ impl Simulation {
             .interact(&particles, &mut self.forces_buf, &mut grid, interact);
 
         //let damping = 0.0005;
-        let damping = 0.0001;
+        let damping = 0.0002;
         //let damping = 0.0001;
 
-        self.stars
+        self.atoms
             .iter_mut()
             .zip(&mut self.forces_buf)
             .for_each(|(star, force)| {
                 star.force = force.cast::<f32>();
                 star.vel += star.force * star.inv_mass;
                 star.vel *= 1.0 - damping;
-                star.pos += 1e-6 * star.vel;
+                star.pos += 1e-7 * star.vel;
 
                 if self.grid.periodic() {
                     star.pos.x = star

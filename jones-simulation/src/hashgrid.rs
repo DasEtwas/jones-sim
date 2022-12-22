@@ -114,11 +114,11 @@ impl HashGrid {
                                     neighbour.mark_interacted(-dx, -dy);
 
                                     for cell_particle in &cell.particles {
-                                        let (ax, ay, ap) = &particles[*cell_particle];
+                                        let (ax, ay, ap) = particles[*cell_particle];
 
                                         for neighbour_particle in &neighbour.particles {
                                             if cell_particle != neighbour_particle {
-                                                let (bx, by, bp) = &particles[*neighbour_particle];
+                                                let (bx, by, bp) = particles[*neighbour_particle];
 
                                                 let dx = if cell_x == 0 && dx == -1 {
                                                     bx - ax - size_x_f
@@ -136,9 +136,11 @@ impl HashGrid {
                                                     by - ay
                                                 };
 
-                                                let force = interact(dx, dy, ap, bp);
-                                                forces_buffer[*cell_particle] += force;
-                                                forces_buffer[*neighbour_particle] += -force;
+                                                if dx * dx + dy * dy < self.cell_size.powi(2) {
+                                                    let force = interact(dx, dy, ap, bp);
+                                                    forces_buffer[*cell_particle] += force;
+                                                    forces_buffer[*neighbour_particle] += -force;
+                                                }
                                             }
                                         }
                                     }
@@ -176,9 +178,13 @@ impl HashGrid {
                                             if cell_particle != neighbour_particle {
                                                 let (bx, by, bp) = &particles[*neighbour_particle];
 
-                                                let force = interact(bx - ax, by - ay, ap, bp);
-                                                forces_buffer[*cell_particle] += force;
-                                                forces_buffer[*neighbour_particle] += -force;
+                                                if (bx - ax).powi(2) + (by - ay).powi(2)
+                                                    < self.cell_size.powi(2)
+                                                {
+                                                    let force = interact(bx - ax, by - ay, ap, bp);
+                                                    forces_buffer[*cell_particle] += force;
+                                                    forces_buffer[*neighbour_particle] += -force;
+                                                }
                                             }
                                         }
                                     }
@@ -217,7 +223,8 @@ pub struct GridCell {
 impl GridCell {
     #[inline]
     pub fn has_interacted_with(&self, dx: i32, dy: i32) -> bool {
-        (self.interacted_with.load(Ordering::Relaxed) & (1u16 << Self::bit_index(dx, dy))) != 0
+        //  (self.interacted_with.load(Ordering::Relaxed) & (1u16 << Self::bit_index(dx, dy))) != 0
+        false
     }
 
     #[inline]

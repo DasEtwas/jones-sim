@@ -209,7 +209,7 @@ impl State {
         });
 
         let instances: Vec<_> = simulation
-            .stars
+            .atoms
             .iter()
             .map(|star| RenderInstance {
                 position: [star.pos.x, star.pos.y],
@@ -367,16 +367,16 @@ impl State {
     }
 
     pub fn update(&mut self, tick: u64) -> f32 {
-        let stars_arc = self.stars.load();
-        let stars = if !self.paused.load(std::sync::atomic::Ordering::Relaxed) {
-            self.history.insert(tick, (**stars_arc).clone());
+        let atoms_arc = self.stars.load();
+        let atoms = if !self.paused.load(std::sync::atomic::Ordering::Relaxed) {
+            self.history.insert(tick, (**atoms_arc).clone());
 
             while self.history.len() > 1000 {
                 let min = *self.history.keys().min().unwrap();
                 self.history.remove(&min);
             }
 
-            &*stars_arc
+            &*atoms_arc
         } else {
             self.history.get(&self.rewind.unwrap()).unwrap()
         };
@@ -388,15 +388,15 @@ impl State {
             .iter_mut()
             .enumerate()
             .for_each(|(i, instance)| {
-                let s = &stars[i];
-                instance.position = [s.pos.x, s.pos.y];
-                let force_scale = 0.06;
-                avg_energy_kinetic += s.vel.norm_squared();
+                let a = &atoms[i];
+                instance.position = [a.pos.x, a.pos.y];
+                let vis_scale = 0.01;
+                avg_energy_kinetic += a.vel.norm_squared();
 
-                instance.color = colormap::map(force_scale * s.force.norm(), &colormap::TURBO);
+                instance.color = colormap::map(a.h * vis_scale, &colormap::TURBO);
             });
 
-        let temp = avg_energy_kinetic * 0.5 / stars.len() as f32 * 2.0 / 3.0;
+        let temp = avg_energy_kinetic * 0.5 / atoms.len() as f32 * 2.0 / 3.0;
 
         temp
     }
