@@ -3,7 +3,7 @@ pub mod state;
 
 use crate::state::State;
 use arc_swap::ArcSwap;
-use jones_simulation::{Atom, MassDistribution, Simulation};
+use jones_simulation::{Atom, Simulation};
 use nalgebra::Vector2;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -47,7 +47,7 @@ async fn main() {
     };
 
     // factor for inter atom distance
-    let distance_factor = 1.05f32;
+    let distance_factor = 1.00f32;
 
     let count = side_length * side_length; // rect
     let count = (side_length as f32 / distance_factor).floor() as usize
@@ -55,9 +55,9 @@ async fn main() {
 
     //let count = side_length * side_length / 4; // random
 
-    let vel = 1600.0;
+    let vel = 6000.0;
 
-    let margin = 0.0;
+    let margin = 0.1;
 
     // https://www.mpie.de/4249939/grain-boundary-phase-transformation-liebscher
 
@@ -67,13 +67,13 @@ async fn main() {
                 let pos = hexagonal_lattice(i, &mut rng, distance_factor);
                 Atom::new(
                     pos + Vector2::repeat(margin * side_length as f32),
-                    Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
-                        * temp,
-                    // if pos.y > side_length as f32 * 0.5 {
-                    //     Vector2::new(vel, -vel * 0.2)
-                    // } else {
-                    //     Vector2::new(-vel, vel * 0.2)
-                    // },
+                    // Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
+                    //     * temp,
+                    if pos.y > side_length as f32 * 0.5 {
+                        Vector2::new(vel, -vel * 0.2)
+                    } else {
+                        Vector2::new(-vel, vel * 0.2)
+                    },
                     // Vector2::new(
                     //     pos.y - side_length as f32 * 0.5,
                     //     -(pos.x - side_length as f32 * 0.5),
@@ -82,16 +82,16 @@ async fn main() {
                     1.0,
                 )
             })
-            .filter(|_| rng3.gen::<f32>() > 1e-2),
-        //.filter(|s| {
-        //    let r = (s.pos - Vector2::repeat(side_length as f32 * (1.0 + 2.0 * margin) * 0.5))
-        //        .norm();
-        //    r > side_length as f32 * 0.1 && r < side_length as f32 * 0.45
-        //}),
+            .filter(|_| rng3.gen::<f32>() > 1e-2)
+            .filter(|s| {
+                let r = (s.pos - Vector2::repeat(side_length as f32 * (1.0 + 2.0 * margin) * 0.5))
+                    .norm();
+                r > side_length as f32 * 0.1 //&& r < side_length as f32 * 0.45
+            }),
         side_length as f32,
         2.0,
         margin * 2.0,
-        true,
+        false,
     );
 
     let stars = Arc::new(ArcSwap::from_pointee(simulation.atoms.clone()));
