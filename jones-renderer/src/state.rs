@@ -111,7 +111,7 @@ impl State {
             .request_device(
                 &DeviceDescriptor {
                     label: None,
-                    features: Features::CONSERVATIVE_RASTERIZATION | Features::PUSH_CONSTANTS,
+                    features: Features::PUSH_CONSTANTS,
                     limits: Limits {
                         max_push_constant_size: size_of::<PushConstants>() as u32,
                         ..Default::default()
@@ -164,7 +164,6 @@ impl State {
             },
             primitive: PrimitiveState {
                 cull_mode: Some(Face::Back),
-                conservative: true,
                 ..Default::default()
             },
             depth_stencil: None,
