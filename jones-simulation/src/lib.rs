@@ -62,8 +62,8 @@ fn lennard_jones_normalizing(dist_sq: f32) -> f32 {
 
 impl Simulation {
     pub fn new<I>(stars: I, side_length: f32, cell_size: f32, margin: f32, periodic: bool) -> Self
-    where
-        I: IntoIterator<Item = Atom>,
+        where
+            I: IntoIterator<Item=Atom>,
     {
         let stars: Vec<Atom> = stars.into_iter().collect();
 
@@ -133,27 +133,37 @@ impl Simulation {
             .interact(&particles, &mut self.forces_buf, &mut grid, interact);
 
         //let damping = 0.0005;
-        let damping = 0.0000;
+        let damping = 0.0001;
         //let damping = 0.0001;
 
         self.atoms
             .iter_mut()
             .zip(&mut self.forces_buf)
             .for_each(|(star, force)| {
+                let dt = 1e-5;
+
                 star.force = force.cast::<f32>();
                 star.vel += star.force * star.inv_mass;
                 star.vel *= 1.0 - damping;
-                star.pos += 1e-7 * star.vel;
+                //star.vel.y -= 1e4 * dt;
+                star.pos += dt * star.vel;
 
                 if self.grid.periodic() {
                     star.pos.x = star
                         .pos
                         .x
                         .rem_euclid(self.grid.size_x() as f32 * self.grid.cell_size());
-                    star.pos.y = star
-                        .pos
-                        .y
-                        .rem_euclid(self.grid.size_y() as f32 * self.grid.cell_size());
+
+                    let ground = false;
+
+                    if ground {
+                        star.pos.y = star.pos.y.clamp(0.0, self.grid.size_y() as f32 * self.grid.cell_size() - 1e-6);
+                    } else {
+                        star.pos.y = star
+                            .pos
+                            .y
+                            .rem_euclid(self.grid.size_y() as f32 * self.grid.cell_size());
+                    }
                 }
 
                 *force = Vector2::zeros();

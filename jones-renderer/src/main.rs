@@ -1,6 +1,7 @@
 pub mod colormap;
 pub mod state;
 
+use std::f32::consts::TAU;
 use crate::state::State;
 use arc_swap::ArcSwap;
 use jones_simulation::{Atom, Simulation};
@@ -24,7 +25,7 @@ async fn main() {
     let mut rng2 = StdRng::from_entropy();
     let mut rng3 = StdRng::from_entropy();
 
-    let temp = 2000.0;
+    let temp = 3000.0;
     let side_length = 100;
 
     let hexagonal_lattice = |i: usize, rng: &mut StdRng, distance_factor: f32| -> Vector2<f32> {
@@ -47,7 +48,7 @@ async fn main() {
     };
 
     // factor for inter atom distance
-    let distance_factor = 1.00f32;
+    let distance_factor = 0.99932;
 
     let count = side_length * side_length; // rect
     let count = (side_length as f32 / distance_factor).floor() as usize
@@ -55,9 +56,9 @@ async fn main() {
 
     //let count = side_length * side_length / 4; // random
 
-    let vel = 6000.0;
+    let vel = 0.0;
 
-    let margin = 0.1;
+    let margin = 0.0;
 
     // https://www.mpie.de/4249939/grain-boundary-phase-transformation-liebscher
 
@@ -65,15 +66,16 @@ async fn main() {
         (0..count)
             .map(|i| {
                 let pos = hexagonal_lattice(i, &mut rng, distance_factor);
+                let r = (rng2.gen::<f32>() * TAU).sin_cos();
                 Atom::new(
                     pos + Vector2::repeat(margin * side_length as f32),
-                    // Vector2::new(rng2.gen::<f32>() * 2.0 - 1.0, rng2.gen::<f32>() * 2.0 - 1.0)
-                    //     * temp,
-                    if pos.y > side_length as f32 * 0.5 {
-                        Vector2::new(vel, -vel * 0.2)
-                    } else {
-                        Vector2::new(-vel, vel * 0.2)
-                    },
+                    Vector2::new(r.0, r.1) * rng2.gen::<f32>().sqrt()
+                        * temp,
+                    //if pos.y > side_length as f32 * 0.5 {
+                    //    Vector2::new(vel, -vel * 0.2)
+                    //} else {
+                    //    Vector2::new(-vel, vel * 0.2)
+                    //},
                     // Vector2::new(
                     //     pos.y - side_length as f32 * 0.5,
                     //     -(pos.x - side_length as f32 * 0.5),
@@ -91,7 +93,7 @@ async fn main() {
         side_length as f32,
         2.0,
         margin * 2.0,
-        false,
+        true,
     );
 
     let stars = Arc::new(ArcSwap::from_pointee(simulation.atoms.clone()));
@@ -132,7 +134,7 @@ async fn main() {
                 }
 
                 simulation.atoms.iter_mut().for_each(|a| {
-                    let k = 0.003;
+                    let k = 0.01;
                     a.h = a.h * (1.0 - k) + a.force.norm() * k;
                 });
 
@@ -154,44 +156,44 @@ async fn main() {
             WindowEvent::CloseRequested
             | WindowEvent::KeyboardInput {
                 input:
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Escape),
-                        ..
-                    },
+                KeyboardInput {
+                    state: ElementState::Pressed,
+                    virtual_keycode: Some(VirtualKeyCode::Escape),
+                    ..
+                },
                 ..
             } => *control_flow = ControlFlow::Exit,
             _ => {}
         },
         Event::MainEventsCleared => window.request_redraw(),
         Event::RedrawRequested(window_id)
-            if window_id == window.id() && last.elapsed() > Duration::from_millis(15) =>
-        {
-            last = Instant::now();
+        if window_id == window.id() && last.elapsed() > Duration::from_millis(15) =>
+            {
+                last = Instant::now();
 
-            let tick = tick_counter.load(Ordering::Relaxed);
+                let tick = tick_counter.load(Ordering::Relaxed);
 
-            let temp = state.update(tick);
+                let temp = state.update(tick);
 
-            if state.paused.load(Ordering::Relaxed) {
-                window.set_title(&format!(
-                    "Temperature: {:.3}, Rewind: {}, Paused ⏸ N<>M",
-                    temp,
-                    state.rewind.unwrap()
-                ));
-            } else {
-                window.set_title(&format!("Temperature: {:.3}, Tick: {}", temp, tick));
+                if state.paused.load(Ordering::Relaxed) {
+                    window.set_title(&format!(
+                        "Temperature: {:.3}, Rewind: {}, Paused ⏸ N<>M",
+                        temp,
+                        state.rewind.unwrap()
+                    ));
+                } else {
+                    window.set_title(&format!("Temperature: {:.3}, Tick: {}", temp, tick));
+                }
+
+                match state.render() {
+                    Ok(_) => {}
+                    Err(e) => match e {
+                        SurfaceError::OutOfMemory => *control_flow = ControlFlow::Exit,
+                        SurfaceError::Lost => state.resize(state.size),
+                        _ => eprintln!("Render Error: {:?}", e),
+                    },
+                }
             }
-
-            match state.render() {
-                Ok(_) => {}
-                Err(e) => match e {
-                    SurfaceError::OutOfMemory => *control_flow = ControlFlow::Exit,
-                    SurfaceError::Lost => state.resize(state.size),
-                    _ => eprintln!("Render Error: {:?}", e),
-                },
-            }
-        }
         _ => {}
     });
 }

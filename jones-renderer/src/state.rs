@@ -81,6 +81,7 @@ pub struct State {
     pub paused: Arc<AtomicBool>,
     pub rewind: Option<u64>,
     pub history: HashMap<u64, Vec<Atom>>,
+    pub grid_size: [f32; 2],
 }
 
 pub enum Selection {
@@ -183,14 +184,14 @@ impl State {
         let vertices: Vec<_> = std::iter::once(Vertex {
             position: [0.0, 0.0],
         })
-        .chain(
-            (0..Self::VERTEX_COUNT - 1)
-                .map(|i| i as f32 / (Self::VERTEX_COUNT - 2) as f32 * std::f32::consts::TAU)
-                .map(|a| Vertex {
-                    position: [-a.sin() * 0.5, a.cos() * 0.5],
-                }),
-        )
-        .collect();
+            .chain(
+                (0..Self::VERTEX_COUNT - 1)
+                    .map(|i| i as f32 / (Self::VERTEX_COUNT - 2) as f32 * std::f32::consts::TAU)
+                    .map(|a| Vertex {
+                        position: [-a.sin() * 0.5, a.cos() * 0.5],
+                    }),
+            )
+            .collect();
         let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&vertices),
@@ -259,6 +260,7 @@ impl State {
             paused: Arc::new(AtomicBool::new(false)),
             rewind: None,
             history: HashMap::new(),
+            grid_size: [simulation.grid.size_x() as f32 * simulation.grid.cell_size(), simulation.grid.size_y() as f32 * simulation.grid.cell_size(), ],
         }
     }
 
@@ -280,11 +282,11 @@ impl State {
         match event {
             WindowEvent::KeyboardInput {
                 input:
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(key),
-                        ..
-                    },
+                KeyboardInput {
+                    state: ElementState::Pressed,
+                    virtual_keycode: Some(key),
+                    ..
+                },
                 ..
             } => match key {
                 VirtualKeyCode::W | VirtualKeyCode::Up => {
@@ -389,10 +391,10 @@ impl State {
             .for_each(|(i, instance)| {
                 let a = &atoms[i];
                 instance.position = [a.pos.x, a.pos.y];
-                let vis_scale = 0.01;
+                let vis_scale = 0.1;
                 avg_energy_kinetic += a.vel.norm_squared();
 
-                instance.color = colormap::map(a.h * vis_scale, &colormap::TURBO);
+                instance.color = colormap::map((a.h + 1.0).ln() * vis_scale, &colormap::TURBO);
             });
 
         let temp = avg_energy_kinetic * 0.5 / atoms.len() as f32 * 2.0 / 3.0;
@@ -424,16 +426,26 @@ impl State {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_push_constants(
-                ShaderStages::VERTEX,
-                0,
-                bytemuck::bytes_of(&self.push_constants),
-            );
+
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
 
-            render_pass.draw_indexed(0..self.index_count, 0, 0..self.instances.len() as u32);
+
+            for dx in -1..=1 {
+                for dy in -1..=1 {
+                    let mut h = self.push_constants.clone();
+                    h.pos[0]+=dx as f32 * self.grid_size[0];
+                    h.pos[1]+=dy as f32 * self.grid_size[1];
+
+                    render_pass.set_push_constants(
+                        ShaderStages::VERTEX,
+                        0,
+                        bytemuck::bytes_of(&h),
+                    );
+                    render_pass.draw_indexed(0..self.index_count, 0, 0..self.instances.len() as u32);
+                }
+            }
         }
 
         self.queue.write_buffer(
